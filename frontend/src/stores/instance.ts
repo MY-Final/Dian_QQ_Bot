@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
 import { 
   instanceApi, 
   systemApi,
@@ -8,8 +8,9 @@ import {
   type ApiResponse 
 } from '../api'
 
-// 系统状态
+// ============ 系统状态 Store ============
 export const useSystemStore = defineStore('system', () => {
+  // State
   const dockerStatus = ref<{
     running: boolean
     platform: string
@@ -26,8 +27,27 @@ export const useSystemStore = defineStore('system', () => {
   
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const lastCheckTime = ref<Date | null>(null)
 
-  // 检查 Docker 状态
+  // Getters
+  const isSystemReady = computed(() => {
+    return dockerStatus.value?.running && databaseStatus.value?.connected
+  })
+
+  const statusSummary = computed(() => {
+    if (!dockerStatus.value || !databaseStatus.value) {
+      return '未检查'
+    }
+    if (isSystemReady.value) {
+      return '运行正常'
+    }
+    const issues = []
+    if (!dockerStatus.value.running) issues.push('Docker 未运行')
+    if (!databaseStatus.value.connected) issues.push('数据库未连接')
+    return issues.join('、')
+  })
+
+  // Actions
   async function checkDocker() {
     loading.value = true
     error.value = null
@@ -36,7 +56,7 @@ export const useSystemStore = defineStore('system', () => {
       dockerStatus.value = response.data.data
       return response.data.success
     } catch (e: any) {
-      error.value = e.message || '检查 Docker 状态失败'
+      error.value = e.response?.data?.message || e.message || '检查 Docker 状态失败'
       dockerStatus.value = {
         running: false,
         platform: 'unknown',
@@ -46,10 +66,10 @@ export const useSystemStore = defineStore('system', () => {
       return false
     } finally {
       loading.value = false
+      lastCheckTime.value = new Date()
     }
   }
 
-  // 检查数据库状态
   async function checkDatabase() {
     loading.value = true
     error.value = null
@@ -58,7 +78,7 @@ export const useSystemStore = defineStore('system', () => {
       databaseStatus.value = response.data.data
       return response.data.success
     } catch (e: any) {
-      error.value = e.message || '检查数据库状态失败'
+      error.value = e.response?.data?.message || e.message || '检查数据库状态失败'
       databaseStatus.value = {
         connected: false,
         database: 'PostgreSQL',
@@ -68,57 +88,93 @@ export const useSystemStore = defineStore('system', () => {
       return false
     } finally {
       loading.value = false
+      lastCheckTime.value = new Date()
     }
   }
 
-  // 检查所有系统状态
   async function checkAll() {
     await Promise.all([checkDocker(), checkDatabase()])
   }
 
-  // 计算属性：系统是否就绪
-  const isSystemReady = computed(() => {
-    return dockerStatus.value?.running && databaseStatus.value?.connected
-  })
+  function reset() {
+    dockerStatus.value = null
+    databaseStatus.value = null
+    loading.value = false
+    error.value = null
+    lastCheckTime.value = null
+  }
 
   return {
+    // State
     dockerStatus,
     databaseStatus,
     loading,
     error,
+    lastCheckTime,
+    // Getters
     isSystemReady,
+    statusSummary,
+    // Actions
     checkDocker,
     checkDatabase,
-    checkAll
+    checkAll,
+    reset
   }
 })
 
-// 实例管理 Store
+// ============ 实例管理 Store ============
 export const useInstanceStore = defineStore('instances', () => {
+  // State
   const instances = ref<Instance[]>([])
   const currentInstance = ref<Instance | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const lastFetchTime = ref<Date | null>(null)
 
-  // 获取实例列表
-  async function fetchInstances() {
+  // Getters
+  const runningInstances = computed(() => 
+    instances.value.filter(i => i.status === 'running')
+  )
+
+  const stoppedInstances = computed(() => 
+    instances.value.filter(i => i.status === 'stopped')
+  )
+
+  const errorInstances = computed(() => 
+    instances.value.filter(i => i.status === 'error')
+  )
+
+  const instanceCount = computed(() => instances.value.length)
+
+  // Actions
+  async function fetchInstances(force = false) {
+    // 如果数据很新（5秒内）且不强制刷新，则跳过
+    if (!force && lastFetchTime.value) {
+      const timeSinceLastFetch = Date.now() - lastFetchTime.value.getTime()
+      if (timeSinceLastFetch < 5000) {
+        return
+      }
+    }
+
     loading.value = true
     error.value = null
     try {
       const response = await instanceApi.list()
       if (response.data.success) {
         instances.value = response.data.data || []
+        lastFetchTime.value = new Date()
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '获取实例列表失败'
+        instances.value = []
       }
     } catch (e: any) {
-      error.value = e.message || '获取实例列表失败'
+      error.value = e.response?.data?.message || e.message || '获取实例列表失败'
+      instances.value = []
     } finally {
       loading.value = false
     }
   }
 
-  // 获取单个实例详情
   async function fetchInstance(id: string) {
     loading.value = true
     error.value = null
@@ -126,20 +182,21 @@ export const useInstanceStore = defineStore('instances', () => {
       const response = await instanceApi.get(id)
       if (response.data.success) {
         currentInstance.value = response.data.data
+        // 更新列表中的实例
+        updateInstanceInList(response.data.data)
         return response.data.data
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '获取实例详情失败'
         return null
       }
     } catch (e: any) {
-      error.value = e.message || '获取实例详情失败'
+      error.value = e.response?.data?.message || e.message || '获取实例详情失败'
       return null
     } finally {
       loading.value = false
     }
   }
 
-  // 创建实例
   async function createInstance(data: InstanceCreate): Promise<Instance | null> {
     loading.value = true
     error.value = null
@@ -154,15 +211,14 @@ export const useInstanceStore = defineStore('instances', () => {
         return null
       }
     } catch (e: any) {
-      error.value = e.message || '创建实例失败'
+      error.value = e.response?.data?.message || e.message || '创建实例失败'
       return null
     } finally {
       loading.value = false
     }
   }
 
-  // 启动实例
-  async function startInstance(id: string) {
+  async function startInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
     try {
@@ -171,19 +227,18 @@ export const useInstanceStore = defineStore('instances', () => {
         updateInstanceInList(response.data.data)
         return true
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '启动失败'
         return false
       }
     } catch (e: any) {
-      error.value = e.message || '启动实例失败'
+      error.value = e.response?.data?.message || e.message || '启动实例失败'
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // 停止实例
-  async function stopInstance(id: string) {
+  async function stopInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
     try {
@@ -192,19 +247,18 @@ export const useInstanceStore = defineStore('instances', () => {
         updateInstanceInList(response.data.data)
         return true
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '停止失败'
         return false
       }
     } catch (e: any) {
-      error.value = e.message || '停止实例失败'
+      error.value = e.response?.data?.message || e.message || '停止实例失败'
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // 重启实例
-  async function restartInstance(id: string) {
+  async function restartInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
     try {
@@ -213,19 +267,18 @@ export const useInstanceStore = defineStore('instances', () => {
         updateInstanceInList(response.data.data)
         return true
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '重启失败'
         return false
       }
     } catch (e: any) {
-      error.value = e.message || '重启实例失败'
+      error.value = e.response?.data?.message || e.message || '重启实例失败'
       return false
     } finally {
       loading.value = false
     }
   }
 
-  // 删除实例
-  async function deleteInstance(id: string) {
+  async function deleteInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
     try {
@@ -237,32 +290,12 @@ export const useInstanceStore = defineStore('instances', () => {
         }
         return true
       } else {
-        error.value = response.data.message
+        error.value = response.data.message || '删除失败'
         return false
       }
     } catch (e: any) {
-      error.value = e.message || '删除实例失败'
+      error.value = e.response?.data?.message || e.message || '删除实例失败'
       return false
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // 获取实例日志
-  async function fetchInstanceLogs(id: string, tail: number = 100) {
-    loading.value = true
-    error.value = null
-    try {
-      const response = await instanceApi.logs(id, tail)
-      if (response.data.success) {
-        return response.data.data?.logs || ''
-      } else {
-        error.value = response.data.message
-        return ''
-      }
-    } catch (e: any) {
-      error.value = e.message || '获取日志失败'
-      return ''
     } finally {
       loading.value = false
     }
@@ -285,7 +318,12 @@ export const useInstanceStore = defineStore('instances', () => {
     currentInstance,
     loading,
     error,
-    
+    lastFetchTime,
+    // 计算属性
+    runningInstances,
+    stoppedInstances,
+    errorInstances,
+    instanceCount,
     // 方法
     fetchInstances,
     fetchInstance,
@@ -294,7 +332,6 @@ export const useInstanceStore = defineStore('instances', () => {
     stopInstance,
     restartInstance,
     deleteInstance,
-    fetchInstanceLogs,
   }
 })
 
