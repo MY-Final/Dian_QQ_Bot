@@ -68,3 +68,7 @@ name = "dian-qq-bot"
 version = "0.1.0"
 description = "QQ Bot 管理平台 - 献给我的点点"
 requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
