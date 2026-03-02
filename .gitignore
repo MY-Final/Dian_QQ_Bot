@@ -55,9 +55,6 @@ htmlcov/
 .pytest_cache/
 .tox/
 
-# Docker
-.dockerignore
-
 # 临时文件
 tmp/
 temp/
