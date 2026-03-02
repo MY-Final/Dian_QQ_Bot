@@ -120,7 +120,32 @@ def generate_volume_path(instance_id: str, protocol: str) -> Path:
     """
     volume_path = settings.instances_dir / instance_id / protocol
     volume_path.mkdir(parents=True, exist_ok=True)
-    return volume_path
+    return volume_path.resolve()
+
+
+def get_docker_volume_bind(volume_path: Path) -> dict:
+    """获取 Docker 卷挂载绑定配置。
+
+    根据操作系统自动处理路径格式：
+    - Windows: 转换为绝对路径
+    - Linux: 使用绝对路径
+
+    Args:
+        volume_path: 主机上的卷路径
+
+    Returns:
+        dict: Docker 卷绑定配置
+    """
+    import os
+
+    host_path = str(volume_path.resolve())
+    if os.name == "nt":
+        host_path = host_path.replace("\\", "/")
+        if ":" in host_path:
+            drive = host_path[0]
+            host_path = f"/{drive}/{host_path[3:]}"
+
+    return {host_path: {"bind": "/app/config", "mode": "rw"}}
 
 
 async def allocate_port() -> int:

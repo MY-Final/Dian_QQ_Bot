@@ -20,6 +20,7 @@ from app.core.exceptions import (
     BotStopError,
     DockerConnectionError,
 )
+from app.database import save_instance
 from app.managers.base import BaseBotManager
 from app.models.db_models import BotInstanceDB
 from app.models.instance import (
@@ -34,6 +35,7 @@ from app.utils.docker_utils import (
     generate_container_name,
     generate_instance_id,
     generate_volume_path,
+    get_docker_volume_bind,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,29 +119,13 @@ class NapCatManager(BaseBotManager):
         instance_id = generate_instance_id()
         container_name = generate_container_name(protocol, instance_id)
         port = await allocate_port()
-        volume_path = str(generate_volume_path(instance_id, protocol))
+        volume_path = generate_volume_path(instance_id, protocol)
         env = format_container_env(qq_number, instance_id, protocol)
 
         logger.info(
             f"正在创建 NapCat 实例: name={name}, qq={qq_number}, "
             f"instance_id={instance_id}, container={container_name}, port={port}"
         )
-
-        try:
-            container = self.client.containers.run(
-                image=settings.napcat_image,
-                name=container_name,
-                ports={"3000/tcp": port},
-                volumes={volume_path: {"bind": "/app/config", "mode": "rw"}},
-                environment=env,
-                detach=False,
-                remove=False,
-            )
-            logger.debug(f"容器 {container_name} 已创建（未启动）")
-
-        except DockerException as e:
-            logger.error(f"创建容器失败: {e}", exc_info=True)
-            raise BotError(f"创建容器失败: {e}") from e
 
         now = datetime.utcnow()
         db_instance = BotInstanceDB(
@@ -150,11 +136,13 @@ class NapCatManager(BaseBotManager):
             status=InstanceStatus.CREATED.value,
             container_name=container_name,
             port=port,
-            volume_path=volume_path,
+            volume_path=str(volume_path),
             description=description,
             created_at=now,
             updated_at=now,
         )
+
+        db_instance = await save_instance(db_instance)
 
         logger.info(f"NapCat 实例创建成功: instance_id={instance_id}")
 

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
+from app.models.db_models import BotInstanceDB
 
 
 class Base(DeclarativeBase):
@@ -55,6 +56,22 @@ async def init_db() -> None:
     """初始化数据库表。"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def save_instance(db_instance: BotInstanceDB) -> BotInstanceDB:
+    """保存 Bot 实例到数据库。
+
+    Args:
+        db_instance: Bot 实例数据库模型
+
+    Returns:
+        BotInstanceDB: 保存后的实例
+    """
+    async with async_session_maker() as session:
+        session.add(db_instance)
+        await session.commit()
+        await session.refresh(db_instance)
+        return db_instance
 
 
 async def close_db() -> None:
