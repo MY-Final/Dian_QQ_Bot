@@ -1,0 +1,17 @@
+# Core
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Database
+sqlalchemy
+aiosqlite
+
+# Docker
+docker
+
+# Utils
+python-dotenv
+psutil
+python-multipart
