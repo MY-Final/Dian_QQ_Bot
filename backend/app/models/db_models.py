@@ -7,13 +7,17 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from app.database import Base
+
+class Base(DeclarativeBase):
+    """数据库模型基类。"""
+
+    pass
 
 
 class BotInstanceDB(Base):
-    """Database model for Bot instances."""
+    """Bot 实例数据库模型。"""
 
     __tablename__ = "bot_instances"
 
