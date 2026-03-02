@@ -20,7 +20,7 @@ from app.core.exceptions import (
     BotStopError,
     DockerConnectionError,
 )
-from app.database import save_instance
+from app.database import save_instance, update_instance
 from app.managers.base import BaseBotManager
 from app.models.db_models import BotInstanceDB
 from app.models.instance import (
@@ -142,9 +142,38 @@ class NapCatManager(BaseBotManager):
             updated_at=now,
         )
 
+        # 先写入 DB，确保持久化存在
         db_instance = await save_instance(db_instance)
 
-        logger.info(f"NapCat 实例创建成功: instance_id={instance_id}")
+        # 同步创建容器，确保结果可追踪
+        try:
+            container = self.client.containers.run(
+                image=settings.napcat_image,
+                name=container_name,
+                ports={"3000/tcp": port},
+                volumes=get_docker_volume_bind(volume_path),
+                environment=env,
+                detach=True,
+                remove=False,
+            )
+            logger.info(f"容器创建成功: {container_name}")
+
+            # 更新 DB 为 RUNNING，并记录实际信息
+            db_instance.container_name = container_name
+            db_instance.port = port
+            db_instance.volume_path = str(volume_path)
+            db_instance.status = InstanceStatus.RUNNING.value
+            db_instance.updated_at = datetime.utcnow()
+            db_instance = await update_instance(db_instance)
+
+        except DockerException as e:
+            logger.error(f"创建容器失败: {e}", exc_info=True)
+            db_instance.status = InstanceStatus.ERROR.value
+            db_instance.description = f"创建容器失败: {e}"
+            await update_instance(db_instance)
+            raise BotError(f"创建容器失败: {e}") from e
+
+        logger.info(f"NapCat 实例创建完成: instance_id={instance_id}")
 
         return self._db_to_response(db_instance)
 
