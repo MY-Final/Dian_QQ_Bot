@@ -1,4 +1,7 @@
-"""Base Bot Manager interface."""
+"""Bot 管理器基类模块。
+
+定义 Bot 管理器的抽象接口，所有具体实现必须继承此类。
+"""
 
 from abc import ABC, abstractmethod
 from pathlib import Path

@@ -1,4 +1,11 @@
-"""Bot instance API routes."""
+"""Bot 实例 API 路由模块。
+
+提供 Bot 实例的 CRUD 接口：
+- 创建/删除实例
+- 启动/停止/重启实例
+- 获取实例列表和详情
+- 获取实例日志
+"""
 
 import logging
 from typing import List
@@ -25,19 +32,19 @@ napcat_manager = NapCatManager()
     description="创建一个新的 NapCat Bot 实例",
 )
 async def create_instance(data: InstanceCreate) -> InstanceResponse:
-    """Create a new NapCat Bot instance.
+    """创建新的 NapCat Bot 实例。
 
     Args:
-        data: Instance creation data
+        data: 实例创建数据
 
     Returns:
-        InstanceResponse: Created instance details
+        InstanceResponse: 创建的实例详情
 
     Raises:
-        HTTPException: If creation fails
+        HTTPException: 如果创建失败
 
     """
-    logger.info(f"API: Creating instance: name={data.name}, qq={data.qq_number}")
+    logger.info(f"API: 正在创建实例: name={data.name}, qq={data.qq_number}")
 
     try:
         instance = await napcat_manager.create(
@@ -46,17 +53,17 @@ async def create_instance(data: InstanceCreate) -> InstanceResponse:
             protocol=data.protocol.value,
             description=data.description,
         )
-        logger.info(f"API: Instance created successfully: id={instance.id}")
+        logger.info(f"API: 实例创建成功: id={instance.id}")
         return instance
 
     except BotError as e:
-        logger.error(f"API: Failed to create instance: {e.message}")
+        logger.error(f"API: 创建实例失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error creating instance: {e}", exc_info=True)
+        logger.error(f"API: 创建实例时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"服务器内部错误: {e}",
@@ -70,21 +77,21 @@ async def create_instance(data: InstanceCreate) -> InstanceResponse:
     description="获取所有 Bot 实例列表",
 )
 async def list_instances() -> List[InstanceResponse]:
-    """List all Bot instances.
+    """列出所有 Bot 实例。
 
     Returns:
-        List[InstanceResponse]: List of all instances
+        List[InstanceResponse]: 所有实例列表
 
     """
-    logger.info("API: Listing all instances")
+    logger.info("API: 正在列出所有实例")
 
     try:
         instances = await napcat_manager.list_instances()
-        logger.info(f"API: Found {len(instances)} instances")
+        logger.info(f"API: 找到 {len(instances)} 个实例")
         return instances
 
     except Exception as e:
-        logger.error(f"API: Error listing instances: {e}", exc_info=True)
+        logger.error(f"API: 列出实例失败: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取实例列表失败: {e}",
@@ -98,23 +105,23 @@ async def list_instances() -> List[InstanceResponse]:
     description="获取指定 Bot 实例的详细信息",
 )
 async def get_instance(instance_id: str) -> InstanceResponse:
-    """Get Bot instance details.
+    """获取 Bot 实例详情。
 
     Args:
-        instance_id: Instance ID
+        instance_id: 实例 ID
 
     Returns:
-        InstanceResponse: Instance details
+        InstanceResponse: 实例详情
 
     Raises:
-        HTTPException: If instance not found
+        HTTPException: 如果实例未找到
 
     """
-    logger.info(f"API: Getting instance: id={instance_id}")
+    logger.info(f"API: 正在获取实例: id={instance_id}")
 
     try:
         status_value = await napcat_manager.get_status(instance_id)
-        logger.info(f"API: Instance {instance_id} status: {status_value}")
+        logger.info(f"API: 实例 {instance_id} 状态: {status_value}")
 
         return InstanceResponse(
             id=instance_id,
@@ -129,13 +136,13 @@ async def get_instance(instance_id: str) -> InstanceResponse:
         )
 
     except BotError as e:
-        logger.error(f"API: Instance not found: {instance_id}")
+        logger.error(f"API: 实例未找到: {instance_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Error getting instance: {e}", exc_info=True)
+        logger.error(f"API: 获取实例失败: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取实例详情失败: {e}",
@@ -149,33 +156,33 @@ async def get_instance(instance_id: str) -> InstanceResponse:
     description="启动指定的 Bot 实例",
 )
 async def start_instance(instance_id: str) -> InstanceResponse:
-    """Start a Bot instance.
+    """启动 Bot 实例。
 
     Args:
-        instance_id: Instance ID
+        instance_id: 实例 ID
 
     Returns:
-        InstanceResponse: Updated instance details
+        InstanceResponse: 更新后的实例详情
 
     Raises:
-        HTTPException: If instance not found or start fails
+        HTTPException: 如果实例未找到或启动失败
 
     """
-    logger.info(f"API: Starting instance: id={instance_id}")
+    logger.info(f"API: 正在启动实例: id={instance_id}")
 
     try:
         instance = await napcat_manager.start(instance_id)
-        logger.info(f"API: Instance started: id={instance_id}")
+        logger.info(f"API: 实例已启动: id={instance_id}")
         return instance
 
     except BotError as e:
-        logger.error(f"API: Failed to start instance: {e.message}")
+        logger.error(f"API: 启动实例失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error starting instance: {e}", exc_info=True)
+        logger.error(f"API: 启动实例时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"启动实例失败: {e}",
@@ -189,33 +196,33 @@ async def start_instance(instance_id: str) -> InstanceResponse:
     description="停止指定的 Bot 实例",
 )
 async def stop_instance(instance_id: str) -> InstanceResponse:
-    """Stop a Bot instance.
+    """停止 Bot 实例。
 
     Args:
-        instance_id: Instance ID
+        instance_id: 实例 ID
 
     Returns:
-        InstanceResponse: Updated instance details
+        InstanceResponse: 更新后的实例详情
 
     Raises:
-        HTTPException: If instance not found or stop fails
+        HTTPException: 如果实例未找到或停止失败
 
     """
-    logger.info(f"API: Stopping instance: id={instance_id}")
+    logger.info(f"API: 正在停止实例: id={instance_id}")
 
     try:
         instance = await napcat_manager.stop(instance_id)
-        logger.info(f"API: Instance stopped: id={instance_id}")
+        logger.info(f"API: 实例已停止: id={instance_id}")
         return instance
 
     except BotError as e:
-        logger.error(f"API: Failed to stop instance: {e.message}")
+        logger.error(f"API: 停止实例失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error stopping instance: {e}", exc_info=True)
+        logger.error(f"API: 停止实例时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"停止实例失败: {e}",
@@ -229,33 +236,33 @@ async def stop_instance(instance_id: str) -> InstanceResponse:
     description="重启指定的 Bot 实例",
 )
 async def restart_instance(instance_id: str) -> InstanceResponse:
-    """Restart a Bot instance.
+    """重启 Bot 实例。
 
     Args:
-        instance_id: Instance ID
+        instance_id: 实例 ID
 
     Returns:
-        InstanceResponse: Updated instance details
+        InstanceResponse: 更新后的实例详情
 
     Raises:
-        HTTPException: If instance not found or restart fails
+        HTTPException: 如果实例未找到或重启失败
 
     """
-    logger.info(f"API: Restarting instance: id={instance_id}")
+    logger.info(f"API: 正在重启实例: id={instance_id}")
 
     try:
         instance = await napcat_manager.restart(instance_id)
-        logger.info(f"API: Instance restarted: id={instance_id}")
+        logger.info(f"API: 实例已重启: id={instance_id}")
         return instance
 
     except BotError as e:
-        logger.error(f"API: Failed to restart instance: {e.message}")
+        logger.error(f"API: 重启实例失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error restarting instance: {e}", exc_info=True)
+        logger.error(f"API: 重启实例时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"重启实例失败: {e}",
@@ -269,29 +276,29 @@ async def restart_instance(instance_id: str) -> InstanceResponse:
     description="删除指定的 Bot 实例",
 )
 async def delete_instance(instance_id: str) -> None:
-    """Delete a Bot instance.
+    """删除 Bot 实例。
 
     Args:
-        instance_id: Instance ID
+        instance_id: 实例 ID
 
     Raises:
-        HTTPException: If instance not found or deletion fails
+        HTTPException: 如果实例未找到或删除失败
 
     """
-    logger.info(f"API: Deleting instance: id={instance_id}")
+    logger.info(f"API: 正在删除实例: id={instance_id}")
 
     try:
         await napcat_manager.delete(instance_id)
-        logger.info(f"API: Instance deleted: id={instance_id}")
+        logger.info(f"API: 实例已删除: id={instance_id}")
 
     except BotError as e:
-        logger.error(f"API: Failed to delete instance: {e.message}")
+        logger.error(f"API: 删除实例失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error deleting instance: {e}", exc_info=True)
+        logger.error(f"API: 删除实例时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"删除实例失败: {e}",
@@ -304,33 +311,33 @@ async def delete_instance(instance_id: str) -> None:
     description="获取指定 Bot 实例的容器日志",
 )
 async def get_instance_logs(instance_id: str, tail: int = 100) -> JSONResponse:
-    """Get Bot instance logs.
+    """获取 Bot 实例日志。
 
     Args:
-        instance_id: Instance ID
-        tail: Number of lines to fetch
+        instance_id: 实例 ID
+        tail: 获取的日志行数
 
     Returns:
-        JSONResponse: Logs content
+        JSONResponse: 日志内容
 
     Raises:
-        HTTPException: If instance not found
+        HTTPException: 如果实例未找到
 
     """
-    logger.info(f"API: Getting logs for instance: id={instance_id}")
+    logger.info(f"API: 正在获取实例日志: id={instance_id}")
 
     try:
         logs = await napcat_manager.get_logs(instance_id, tail)
         return JSONResponse(content={"logs": logs})
 
     except BotError as e:
-        logger.error(f"API: Failed to get logs: {e.message}")
+        logger.error(f"API: 获取日志失败: {e.message}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=e.message,
         ) from e
     except Exception as e:
-        logger.error(f"API: Unexpected error getting logs: {e}", exc_info=True)
+        logger.error(f"API: 获取日志时发生未知错误: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取日志失败: {e}",

@@ -1,4 +1,7 @@
-"""Database models for Bot instances."""
+"""Bot 实例数据库模型模块。
+
+包含 SQLAlchemy ORM 模型，用于数据库持久化。
+"""
 
 from datetime import datetime
 from typing import Optional

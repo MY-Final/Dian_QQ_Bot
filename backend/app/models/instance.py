@@ -1,4 +1,7 @@
-"""Bot instance models module."""
+"""Bot 实例数据模型模块。
+
+包含 Pydantic 模型，用于 API 请求/响应验证。
+"""
 
 from datetime import datetime
 from enum import Enum
@@ -8,7 +11,7 @@ from pydantic import BaseModel, Field
 
 
 class ProtocolType(str, Enum):
-    """Bot protocol types."""
+    """Bot 协议类型枚举。"""
 
     NAPCAT = "napcat"
     LLONEBOT = "llonebot"
@@ -16,7 +19,7 @@ class ProtocolType(str, Enum):
 
 
 class InstanceStatus(str, Enum):
-    """Bot instance status."""
+    """Bot 实例状态枚举。"""
 
     CREATED = "created"
     RUNNING = "running"
@@ -25,49 +28,45 @@ class InstanceStatus(str, Enum):
 
 
 class InstanceCreate(BaseModel):
-    """Schema for creating a Bot instance."""
+    """创建 Bot 实例的请求模型。"""
 
-    name: str = Field(..., min_length=1, max_length=100, description="Instance name")
-    qq_number: str = Field(..., min_length=5, max_length=15, description="QQ number")
-    protocol: ProtocolType = Field(
-        default=ProtocolType.NAPCAT, description="Bot protocol"
-    )
-    description: Optional[str] = Field(
-        None, max_length=500, description="Optional description"
-    )
+    name: str = Field(..., min_length=1, max_length=100, description="实例名称")
+    qq_number: str = Field(..., min_length=5, max_length=15, description="QQ 号码")
+    protocol: ProtocolType = Field(default=ProtocolType.NAPCAT, description="Bot 协议")
+    description: Optional[str] = Field(None, max_length=500, description="可选描述")
 
 
 class InstanceResponse(BaseModel):
-    """Schema for Bot instance response."""
+    """Bot 实例的响应模型。"""
 
-    id: str = Field(..., description="Instance unique ID")
-    name: str = Field(..., description="Instance name")
-    qq_number: str = Field(..., description="QQ number")
-    protocol: ProtocolType = Field(..., description="Bot protocol")
-    status: InstanceStatus = Field(..., description="Instance status")
-    container_name: str = Field(..., description="Docker container name")
-    port: int = Field(..., description="Exposed port")
-    volume_path: str = Field(..., description="Volume mount path")
-    description: Optional[str] = Field(None, description="Optional description")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
+    id: str = Field(..., description="实例唯一 ID")
+    name: str = Field(..., description="实例名称")
+    qq_number: str = Field(..., description="QQ 号码")
+    protocol: ProtocolType = Field(..., description="Bot 协议")
+    status: InstanceStatus = Field(..., description="实例状态")
+    container_name: str = Field(..., description="Docker 容器名称")
+    port: int = Field(..., description="暴露端口")
+    volume_path: str = Field(..., description="卷挂载路径")
+    description: Optional[str] = Field(None, description="可选描述")
+    created_at: datetime = Field(..., description="创建时间")
+    updated_at: datetime = Field(..., description="最后更新时间")
 
 
 class InstanceStart(BaseModel):
-    """Schema for starting a Bot instance."""
+    """启动 Bot 实例的请求模型。"""
 
-    instance_id: str = Field(..., description="Instance ID to start")
+    instance_id: str = Field(..., description="要启动的实例 ID")
 
 
 class InstanceStop(BaseModel):
-    """Schema for stopping a Bot instance."""
+    """停止 Bot 实例的请求模型。"""
 
-    instance_id: str = Field(..., description="Instance ID to stop")
+    instance_id: str = Field(..., description="要停止的实例 ID")
 
 
 class InstanceLogs(BaseModel):
-    """Schema for Bot instance logs."""
+    """Bot 实例日志模型。"""
 
-    instance_id: str = Field(..., description="Instance ID")
-    logs: str = Field(..., description="Container logs")
-    tail: int = Field(default=100, description="Number of lines to fetch")
+    instance_id: str = Field(..., description="实例 ID")
+    logs: str = Field(..., description="容器日志")
+    tail: int = Field(default=100, description="获取的日志行数")

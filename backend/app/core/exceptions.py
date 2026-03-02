@@ -1,10 +1,13 @@
-"""Bot exceptions module."""
+"""Bot 异常模块。
+
+定义项目使用的所有自定义异常类型。
+"""
 
 from typing import Optional
 
 
 class BotError(Exception):
-    """Base exception for Bot errors."""
+    """Bot 错误的基类。"""
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -12,63 +15,63 @@ class BotError(Exception):
 
 
 class BotNotFoundError(BotError):
-    """Raised when Bot instance is not found."""
+    """当 Bot 实例未找到时抛出。"""
 
     def __init__(self, instance_id: str) -> None:
-        super().__init__(f"Bot instance '{instance_id}' not found")
+        super().__init__(f"Bot 实例 '{instance_id}' 未找到")
         self.instance_id = instance_id
 
 
 class BotAlreadyExistsError(BotError):
-    """Raised when Bot instance already exists."""
+    """当 Bot 实例已存在时抛出。"""
 
     def __init__(self, instance_id: str) -> None:
-        super().__init__(f"Bot instance '{instance_id}' already exists")
+        super().__init__(f"Bot 实例 '{instance_id}' 已存在")
         self.instance_id = instance_id
 
 
 class BotStartError(BotError):
-    """Raised when Bot fails to start."""
+    """当 Bot 启动失败时抛出。"""
 
     def __init__(self, instance_id: str, exit_code: Optional[int] = None) -> None:
-        message = f"Failed to start Bot instance '{instance_id}'"
+        message = f"启动 Bot 实例 '{instance_id}' 失败"
         if exit_code is not None:
-            message += f" (exit code: {exit_code})"
+            message += f" (退出码: {exit_code})"
         super().__init__(message)
         self.instance_id = instance_id
         self.exit_code = exit_code
 
 
 class BotStopError(BotError):
-    """Raised when Bot fails to stop."""
+    """当 Bot 停止失败时抛出。"""
 
     def __init__(self, instance_id: str, exit_code: Optional[int] = None) -> None:
-        message = f"Failed to stop Bot instance '{instance_id}'"
+        message = f"停止 Bot 实例 '{instance_id}' 失败"
         if exit_code is not None:
-            message += f" (exit code: {exit_code})"
+            message += f" (退出码: {exit_code})"
         super().__init__(message)
         self.instance_id = instance_id
         self.exit_code = exit_code
 
 
 class BotDeleteError(BotError):
-    """Raised when Bot fails to delete."""
+    """当 Bot 删除失败时抛出。"""
 
     def __init__(self, instance_id: str) -> None:
-        super().__init__(f"Failed to delete Bot instance '{instance_id}'")
+        super().__init__(f"删除 Bot 实例 '{instance_id}' 失败")
         self.instance_id = instance_id
 
 
 class DockerConnectionError(BotError):
-    """Raised when Docker daemon connection fails."""
+    """当 Docker 守护进程连接失败时抛出。"""
 
-    def __init__(self, message: str = "Failed to connect to Docker daemon") -> None:
+    def __init__(self, message: str = "无法连接到 Docker 守护进程") -> None:
         super().__init__(message)
 
 
 class PortAllocationError(BotError):
-    """Raised when port allocation fails."""
+    """当端口分配失败时抛出。"""
 
     def __init__(self, port: int) -> None:
-        super().__init__(f"Failed to allocate port {port}")
+        super().__init__(f"分配端口 {port} 失败")
         self.port = port

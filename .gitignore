@@ -62,8 +62,3 @@ htmlcov/
 tmp/
 temp/
 *.tmp
-
-# Frontend
-frontend/node_modules/
-frontend/.vite/
-frontend/dist/

@@ -1,4 +1,7 @@
-"""FastAPI application entry point."""
+"""FastAPI 应用入口模块。
+
+应用主入口，配置中间件、路由和生命周期管理。
+"""
 
 import logging
 from contextlib import asynccontextmanager
@@ -8,9 +11,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import instances
+from app.api.v1 import system
 from app.core.config import settings
 from app.database import close_db, init_db
 
+# 配置日志
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -24,25 +29,28 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler.
+    """应用生命周期处理器。
+
+    在应用启动时初始化数据库，
+    在应用关闭时关闭数据库连接。
 
     Args:
-        app: FastAPI application instance
-
+        app: FastAPI 应用实例
     """
-    logger.info("Starting Dian QQ Bot...")
-    logger.info(f"App: {settings.app_name}, Debug: {settings.debug}")
+    logger.info("启动 Dian QQ Bot...")
+    logger.info(f"应用: {settings.app_name}, 调试模式: {settings.debug}")
 
     await init_db()
-    logger.info("Database initialized")
+    logger.info("数据库初始化完成")
 
     yield
 
-    logger.info("Shutting down Dian QQ Bot...")
+    logger.info("关闭 Dian QQ Bot...")
     await close_db()
-    logger.info("Database connections closed")
+    logger.info("数据库连接已关闭")
 
 
+# 创建 FastAPI 应用
 app = FastAPI(
     title=settings.app_name,
     description="QQ Bot 管理平台 - 献给我的点点 🐱❤️",
@@ -50,6 +58,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 添加 CORS 中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -61,18 +70,19 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Global exception handler.
+    """全局异常处理器。
+
+    捕获所有未处理的异常并返回友好的错误信息。
 
     Args:
-        request: FastAPI request
-        exc: Exception
+        request: FastAPI 请求对象
+        exc: 异常对象
 
     Returns:
-        JSONResponse: Error response
-
+        JSONResponse: 错误响应
     """
     logger.error(
-        f"Unhandled exception: {exc}",
+        f"未处理的异常: {exc}",
         exc_info=True,
     )
     return JSONResponse(
@@ -81,16 +91,17 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
+# 注册路由
 app.include_router(instances.router, prefix="/api/v1")
+app.include_router(system.router, prefix="/api/v1")
 
 
 @app.get("/")
 async def root():
-    """Root endpoint.
+    """根路径接口。
 
     Returns:
-        dict: Welcome message
-
+        dict: 欢迎信息
     """
     return {
         "name": settings.app_name,
@@ -101,10 +112,9 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint.
+    """健康检查接口。
 
     Returns:
-        dict: Health status
-
+        dict: 服务状态
     """
     return {"status": "ok", "message": "服务运行正常"}

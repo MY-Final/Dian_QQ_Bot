@@ -1,4 +1,7 @@
-"""NapCat Bot Manager implementation."""
+"""NapCat Bot 管理器实现模块。
+
+提供 NapCat Docker 容器的完整生命周期管理。
+"""
 
 import logging
 from datetime import datetime
@@ -37,41 +40,41 @@ logger = logging.getLogger(__name__)
 
 
 class NapCatManager(BaseBotManager):
-    """NapCat Docker Bot Manager."""
+    """NapCat Docker Bot 管理器。"""
 
     def __init__(self) -> None:
-        """Initialize NapCat manager."""
+        """初始化 NapCat 管理器。"""
         self._client: Optional[docker.DockerClient] = None
 
     @property
     def client(self) -> docker.DockerClient:
-        """Get Docker client with lazy initialization.
+        """获取 Docker 客户端（延迟初始化）。
 
         Returns:
-            docker.DockerClient: Docker client instance
+            docker.DockerClient: Docker 客户端实例
 
         Raises:
-            DockerConnectionError: If connection fails
+            DockerConnectionError: 连接失败时抛出
 
         """
         if self._client is None:
             try:
                 self._client = docker.from_env()
             except DockerException as e:
-                logger.error(f"Failed to connect to Docker: {e}", exc_info=True)
+                logger.error(f"连接 Docker 失败: {e}", exc_info=True)
                 raise DockerConnectionError(
                     "无法连接到 Docker 守护进程，请确保 Docker Desktop 已启动"
                 ) from e
         return self._client
 
     def _db_to_response(self, db_instance: BotInstanceDB) -> InstanceResponse:
-        """Convert database model to response schema.
+        """将数据库模型转换为响应模式。
 
         Args:
-            db_instance: Database instance
+            db_instance: 数据库实例
 
         Returns:
-            InstanceResponse: Response schema
+            InstanceResponse: 响应模式
 
         """
         return InstanceResponse(
@@ -95,20 +98,20 @@ class NapCatManager(BaseBotManager):
         protocol: str = "napcat",
         description: Optional[str] = None,
     ) -> InstanceResponse:
-        """Create a new NapCat Bot instance.
+        """创建新的 NapCat Bot 实例。
 
         Args:
-            name: Instance name
-            qq_number: QQ number
-            protocol: Bot protocol (default: napcat)
-            description: Optional description
+            name: 实例名称
+            qq_number: QQ 号码
+            protocol: Bot 协议（默认: napcat）
+            description: 可选描述
 
         Returns:
-            InstanceResponse: Created instance details
+            InstanceResponse: 创建的实例详情
 
         Raises:
-            BotAlreadyExistsError: If instance already exists
-            BotError: If creation fails
+            BotAlreadyExistsError: 如果实例已存在
+            BotError: 如果创建失败
 
         """
         instance_id = generate_instance_id()
@@ -118,7 +121,7 @@ class NapCatManager(BaseBotManager):
         env = format_container_env(qq_number, instance_id, protocol)
 
         logger.info(
-            f"Creating NapCat instance: name={name}, qq={qq_number}, "
+            f"正在创建 NapCat 实例: name={name}, qq={qq_number}, "
             f"instance_id={instance_id}, container={container_name}, port={port}"
         )
 
@@ -132,10 +135,10 @@ class NapCatManager(BaseBotManager):
                 detach=False,
                 remove=False,
             )
-            logger.debug(f"Container {container_name} created (not started)")
+            logger.debug(f"容器 {container_name} 已创建（未启动）")
 
         except DockerException as e:
-            logger.error(f"Failed to create container: {e}", exc_info=True)
+            logger.error(f"创建容器失败: {e}", exc_info=True)
             raise BotError(f"创建容器失败: {e}") from e
 
         now = datetime.utcnow()
@@ -153,38 +156,38 @@ class NapCatManager(BaseBotManager):
             updated_at=now,
         )
 
-        logger.info(f"NapCat instance created successfully: instance_id={instance_id}")
+        logger.info(f"NapCat 实例创建成功: instance_id={instance_id}")
 
         return self._db_to_response(db_instance)
 
     async def start(self, instance_id: str) -> InstanceResponse:
-        """Start a NapCat Bot instance.
+        """启动 NapCat Bot 实例。
 
         Args:
-            instance_id: Instance ID
+            instance_id: 实例 ID
 
         Returns:
-            InstanceResponse: Updated instance details
+            InstanceResponse: 更新后的实例详情
 
         Raises:
-            BotNotFoundError: If instance not found
-            BotStartError: If start fails
+            BotNotFoundError: 如果实例未找到
+            BotStartError: 如果启动失败
 
         """
-        logger.info(f"Starting NapCat instance: instance_id={instance_id}")
+        logger.info(f"正在启动 NapCat 实例: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.start()
-            logger.info(f"NapCat instance started: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已启动: instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"Container not found: {container_name}")
+            logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"Failed to start container: {e}", exc_info=True)
+            logger.error(f"启动容器失败: {e}", exc_info=True)
             raise BotStartError(instance_id) from e
 
         now = datetime.utcnow()
@@ -204,33 +207,33 @@ class NapCatManager(BaseBotManager):
         return self._db_to_response(db_instance)
 
     async def stop(self, instance_id: str) -> InstanceResponse:
-        """Stop a NapCat Bot instance.
+        """停止 NapCat Bot 实例。
 
         Args:
-            instance_id: Instance ID
+            instance_id: 实例 ID
 
         Returns:
-            InstanceResponse: Updated instance details
+            InstanceResponse: 更新后的实例详情
 
         Raises:
-            BotNotFoundError: If instance not found
-            BotStopError: If stop fails
+            BotNotFoundError: 如果实例未找到
+            BotStopError: 如果停止失败
 
         """
-        logger.info(f"Stopping NapCat instance: instance_id={instance_id}")
+        logger.info(f"正在停止 NapCat 实例: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.stop(timeout=10)
-            logger.info(f"NapCat instance stopped: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已停止: instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"Container not found: {container_name}")
+            logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"Failed to stop container: {e}", exc_info=True)
+            logger.error(f"停止容器失败: {e}", exc_info=True)
             raise BotStopError(instance_id) from e
 
         now = datetime.utcnow()
@@ -250,33 +253,33 @@ class NapCatManager(BaseBotManager):
         return self._db_to_response(db_instance)
 
     async def restart(self, instance_id: str) -> InstanceResponse:
-        """Restart a NapCat Bot instance.
+        """重启 NapCat Bot 实例。
 
         Args:
-            instance_id: Instance ID
+            instance_id: 实例 ID
 
         Returns:
-            InstanceResponse: Updated instance details
+            InstanceResponse: 更新后的实例详情
 
         Raises:
-            BotNotFoundError: If instance not found
-            BotError: If restart fails
+            BotNotFoundError: 如果实例未找到
+            BotError: 如果重启失败
 
         """
-        logger.info(f"Restarting NapCat instance: instance_id={instance_id}")
+        logger.info(f"正在重启 NapCat 实例: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.restart(timeout=10)
-            logger.info(f"NapCat instance restarted: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已重启: instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"Container not found: {container_name}")
+            logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"Failed to restart container: {e}", exc_info=True)
+            logger.error(f"重启容器失败: {e}", exc_info=True)
             raise BotError(f"重启容器失败: {e}") from e
 
         now = datetime.utcnow()
@@ -296,17 +299,17 @@ class NapCatManager(BaseBotManager):
         return self._db_to_response(db_instance)
 
     async def delete(self, instance_id: str) -> None:
-        """Delete a NapCat Bot instance.
+        """删除 NapCat Bot 实例。
 
         Args:
-            instance_id: Instance ID
+            instance_id: 实例 ID
 
         Raises:
-            BotNotFoundError: If instance not found
-            BotDeleteError: If deletion fails
+            BotNotFoundError: 如果实例未找到
+            BotDeleteError: 如果删除失败
 
         """
-        logger.info(f"Deleting NapCat instance: instance_id={instance_id}")
+        logger.info(f"正在删除 NapCat 实例: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
@@ -314,32 +317,30 @@ class NapCatManager(BaseBotManager):
             container = self.client.containers.get(container_name)
             container.stop(timeout=5)
             container.remove()
-            logger.info(f"Container removed: {container_name}")
+            logger.info(f"容器已移除: {container_name}")
 
         except NotFound:
-            logger.warning(
-                f"Container not found (may already be deleted): {container_name}"
-            )
+            logger.warning(f"容器未找到（可能已被删除）: {container_name}")
         except DockerException as e:
-            logger.error(f"Failed to delete container: {e}", exc_info=True)
+            logger.error(f"删除容器失败: {e}", exc_info=True)
             raise BotDeleteError(instance_id) from e
 
-        logger.info(f"NapCat instance deleted: instance_id={instance_id}")
+        logger.info(f"NapCat 实例已删除: instance_id={instance_id}")
 
     async def get_status(self, instance_id: str) -> InstanceStatus:
-        """Get NapCat Bot instance status.
+        """获取 NapCat Bot 实例状态。
 
         Args:
-            instance_id: Instance ID
+            instance_id: 实例 ID
 
         Returns:
-            InstanceStatus: Current status
+            InstanceStatus: 当前状态
 
         Raises:
-            BotNotFoundError: If instance not found
+            BotNotFoundError: 如果实例未找到
 
         """
-        logger.debug(f"Getting status for instance: instance_id={instance_id}")
+        logger.debug(f"正在获取实例状态: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
@@ -356,27 +357,27 @@ class NapCatManager(BaseBotManager):
                 return InstanceStatus.ERROR
 
         except NotFound:
-            logger.error(f"Container not found: {container_name}")
+            logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"Failed to get container status: {e}", exc_info=True)
+            logger.error(f"获取容器状态失败: {e}", exc_info=True)
             return InstanceStatus.ERROR
 
     async def get_logs(self, instance_id: str, tail: int = 100) -> str:
-        """Get NapCat Bot instance logs.
+        """获取 NapCat Bot 实例日志。
 
         Args:
-            instance_id: Instance ID
-            tail: Number of lines to fetch
+            instance_id: 实例 ID
+            tail: 获取的日志行数
 
         Returns:
-            str: Container logs
+            str: 容器日志
 
         Raises:
-            BotNotFoundError: If instance not found
+            BotNotFoundError: 如果实例未找到
 
         """
-        logger.debug(f"Fetching logs for instance: instance_id={instance_id}")
+        logger.debug(f"正在获取实例日志: instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
@@ -386,27 +387,27 @@ class NapCatManager(BaseBotManager):
             return logs
 
         except NotFound:
-            logger.error(f"Container not found: {container_name}")
+            logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"Failed to get container logs: {e}", exc_info=True)
-            return f"Error fetching logs: {e}"
+            logger.error(f"获取容器日志失败: {e}", exc_info=True)
+            return f"获取日志失败: {e}"
 
     async def list_instances(self) -> list[InstanceResponse]:
-        """List all NapCat Bot instances.
+        """列出所有 NapCat Bot 实例。
 
         Returns:
-            list[InstanceResponse]: List of all instances
+            list[InstanceResponse]: 所有实例列表
 
         """
-        logger.debug("Listing all NapCat instances")
+        logger.debug("正在列出所有 NapCat 实例")
 
         instances = []
         try:
             containers = self.client.containers.list(all=True)
-            logger.info(f"Found {len(containers)} containers")
+            logger.info(f"找到 {len(containers)} 个容器")
         except DockerException as e:
-            logger.error(f"Failed to list containers: {e}", exc_info=True)
+            logger.error(f"列出容器失败: {e}", exc_info=True)
             return instances
 
         return instances
