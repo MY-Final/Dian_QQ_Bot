@@ -1,31 +1,23 @@
 import axios from 'axios'
 
-const apiClient = axios.create({
-  baseURL: '/api/v1',
+const api = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api/v1',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error)
-    return Promise.reject(error)
-  }
-)
-
-export interface InstanceResponse {
+export interface Instance {
   id: string
   name: string
   qq_number: string
-  protocol: string
-  status: string
+  protocol: 'napcat' | 'llonebot' | 'custom'
+  status: 'created' | 'running' | 'stopped' | 'error'
   container_name: string
   port: number
   volume_path: string
-  description: string | null
+  description?: string
   created_at: string
   updated_at: string
 }
@@ -33,32 +25,26 @@ export interface InstanceResponse {
 export interface InstanceCreate {
   name: string
   qq_number: string
-  protocol?: string
+  protocol?: 'napcat' | 'llonebot' | 'custom'
   description?: string
 }
 
 export const instanceApi = {
-  list: () => apiClient.get<InstanceResponse[]>('/instances/'),
+  list: () => api.get<Instance[]>('/instances/'),
   
-  get: (id: string) => apiClient.get<InstanceResponse>(`/instances/${id}`),
+  get: (id: string) => api.get<Instance>(`/instances/${id}`),
   
-  create: (data: InstanceCreate) => 
-    apiClient.post<InstanceResponse>('/instances/', data),
+  create: (data: InstanceCreate) => api.post<Instance>('/instances/', data),
   
-  start: (id: string) => 
-    apiClient.post<InstanceResponse>(`/instances/${id}/start`),
+  start: (id: string) => api.post<Instance>(`/instances/${id}/start`),
   
-  stop: (id: string) => 
-    apiClient.post<InstanceResponse>(`/instances/${id}/stop`),
+  stop: (id: string) => api.post<Instance>(`/instances/${id}/stop`),
   
-  restart: (id: string) => 
-    apiClient.post<InstanceResponse>(`/instances/${id}/restart`),
+  restart: (id: string) => api.post<Instance>(`/instances/${id}/restart`),
   
-  delete: (id: string) => 
-    apiClient.delete(`/instances/${id}`),
+  delete: (id: string) => api.delete(`/instances/${id}`),
   
-  logs: (id: string, tail: number = 100) => 
-    apiClient.get<{ logs: string }>(`/instances/${id}/logs`, { params: { tail } }),
+  logs: (id: string, tail: number = 100) => api.get<{ logs: string }>(`/instances/${id}/logs`, { params: { tail } }),
 }
 
-export default apiClient
+export default api
