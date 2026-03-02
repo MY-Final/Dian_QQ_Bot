@@ -43,9 +43,16 @@ class Settings(BaseSettings):
     port_range_end: int = Field(default=40000, env="PORT_RANGE_END")
 
     # 数据库配置
-    database_url: str = Field(
-        default="sqlite+aiosqlite:///./data/bot.db", env="DATABASE_URL"
-    )
+    db_host: str = Field(default="116.62.31.219", env="DB_HOST")
+    db_port: int = Field(default=5433, env="DB_PORT")
+    db_name: str = Field(default="postgres", env="DB_NAME")
+    db_user: str = Field(default="postgres", env="DB_USER")
+    db_password: str = Field(default="admin123", env="DB_PASSWORD")
+
+    @property
+    def database_url(self) -> str:
+        """构建数据库连接 URL。"""
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # 日志配置
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
