@@ -127,8 +127,8 @@ def get_docker_volume_bind(volume_path: Path) -> dict:
     """获取 Docker 卷挂载绑定配置。
 
     根据操作系统自动处理路径格式：
-    - Windows: 转换为绝对路径
-    - Linux: 使用绝对路径
+    - Windows: 转换为 Docker 兼容格式
+    - Linux: 直接使用路径
 
     Args:
         volume_path: 主机上的卷路径
@@ -137,14 +137,21 @@ def get_docker_volume_bind(volume_path: Path) -> dict:
         dict: Docker 卷绑定配置
     """
     import os
-
+    import sys
+    
+    # 获取绝对路径
     host_path = str(volume_path.resolve())
-    if os.name == "nt":
-        host_path = host_path.replace("\\", "/")
-        if ":" in host_path:
-            drive = host_path[0]
-            host_path = f"/{drive}/{host_path[3:]}"
-
+    
+    # Windows 特殊处理
+    if sys.platform == 'win32':
+        # 将反斜杠转换为正斜杠
+        host_path = host_path.replace('\\', '/')
+        
+        # 处理盘符 (C: -> /c)
+        if len(host_path) > 1 and host_path[1] == ':':
+            drive = host_path[0].lower()
+            host_path = f"/{drive}{host_path[2:]}"
+    
     return {host_path: {"bind": "/app/config", "mode": "rw"}}
 
 

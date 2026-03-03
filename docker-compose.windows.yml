@@ -1,5 +1,7 @@
-# Docker Compose 配置文件
-# 支持 Windows 和 Linux
+version: '3.8'
+
+# Windows 专用 Docker Compose 配置
+# 使用 Docker Desktop 的 npipe 方式连接 Docker
 
 x-postgres-env: &postgres-env
   POSTGRES_USER: ${DB_USER:-postgres}
@@ -8,7 +10,7 @@ x-postgres-env: &postgres-env
   TZ: Asia/Shanghai
 
 x-api-env: &api-env
-  # 数据库配置（使用 docker 内部网络）
+  # 数据库配置
   DB_HOST: postgres
   DB_PORT: 5432
   DB_NAME: ${DB_NAME:-dian_bot}
@@ -19,7 +21,8 @@ x-api-env: &api-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   HOST: 0.0.0.0
   PORT: 8000
-  # Docker 配置
+  # Docker 配置 (Windows 使用 npipe)
+  DOCKER_HOST: npipe:////./pipe/docker_engine
   CONTAINER_PREFIX: dian
   NAPCAT_IMAGE: mlikiowa/napcat-docker:latest
   PORT_RANGE_START: 30000
@@ -29,11 +32,10 @@ x-api-env: &api-env
   PYTHONUTF8: 1
 
 x-logging: &default-logging
-  driver: "local"
+  driver: "json-file"
   options:
     max-size: "100m"
     max-file: "3"
-    compress: "true"
 
 services:
   # PostgreSQL 数据库
@@ -64,12 +66,11 @@ services:
     restart: unless-stopped
     environment: *api-env
     volumes:
-      # 应用数据
+      # 应用数据 (Windows 路径)
       - ./data:/app/data
       - ./logs:/app/logs
       - ./instances:/app/instances
-      # Linux: 挂载 Docker Socket
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Windows 不挂载 socket，使用 DOCKER_HOST 环境变量
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -78,7 +79,7 @@ services:
     networks:
       - dian_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "powershell -Command \"try { (New-Object Net.WebClient).DownloadString('http://localhost:8000/health') } catch { exit 1 }\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -98,11 +99,6 @@ services:
       - api
     networks:
       - dian_network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
     logging: *default-logging
 
 networks:

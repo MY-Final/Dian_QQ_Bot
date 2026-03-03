@@ -1,33 +1,75 @@
-# 后端 Dockerfile
+# 后端 Dockerfile - 多阶段构建优化版
+# 支持 Windows 和 Linux
+
+# ============ 构建阶段 ============
+FROM python:3.11-slim as builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件
+COPY requirements.txt .
+
+# 安装 Python 依赖
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# ============ 运行阶段 ============
 FROM python:3.11-slim
 
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
-    gcc \
-    postgresql-client \
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    PYTHONFAULTHANDLER=1 \
+    PATH="/root/.local/bin:$PATH"
+
+# 安装运行时依赖（不安装构建工具）
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libpq5 \
+    postgresql-client \
+    # Docker CLI (用于管理容器)
+    && curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.3.1.tgz | tar -xz -C /usr/local/bin/ --strip-components=1 docker/docker \
+    || echo "Docker CLI installation failed, will use docker-py only" \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖文件（从根目录）
+# 从构建阶段复制已安装的包
+COPY --from=builder /root/.local /root/.local
+
+# 复制应用代码
+COPY backend/ ./backend/
 COPY requirements.txt .
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+# 创建必要的目录并设置权限
+RUN mkdir -p /app/data /app/logs /app/instances \
+    && chmod -R 755 /app \
+    && chown -R root:root /app
 
-# 复制后端代码
-COPY backend/ ./backend/
-
-# 创建必要的目录
-RUN mkdir -p /app/data /app/logs
+# 设置工作目录
+WORKDIR /app
 
 # 暴露端口
 EXPOSE 8000
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # 启动命令
