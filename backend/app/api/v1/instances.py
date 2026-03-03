@@ -43,7 +43,28 @@ def success_response(data: Any = None, message: str = "操作成功") -> Dict[st
     Returns:
         Dict: 统一格式的成功响应
     """
+    # 处理 datetime 序列化
+    if data is not None:
+        data = convert_datetime_to_str(data)
     return {"success": True, "message": message, "data": data}
+
+
+def convert_datetime_to_str(obj: Any) -> Any:
+    """递归转换 datetime 对象为 ISO 格式字符串。
+
+    Args:
+        obj: 需要转换的对象
+
+    Returns:
+        Any: 转换后的对象
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: convert_datetime_to_str(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_datetime_to_str(item) for item in obj]
+    return obj
 
 
 def error_response(message: str, code: int = 400) -> Dict[str, Any]:
@@ -82,6 +103,11 @@ async def create_instance(data: InstanceCreate) -> JSONResponse:
             qq_number=data.qq_number,
             protocol=data.protocol.value,
             description=data.description,
+            port_web_ui=data.port_web_ui,
+            port_http=data.port_http,
+            port_ws=data.port_ws,
+            napcat_uid=data.napcat_uid,
+            napcat_gid=data.napcat_gid,
         )
         logger.info(f"API: 实例创建成功: id={instance.id}")
         return JSONResponse(
@@ -247,7 +273,7 @@ async def start_instance(instance_id: str) -> JSONResponse:
         JSONResponse: 包含启动结果的统一格式响应
 
     """
-    logger.info(f"API: 正在启动实例: id={instance_id}")
+    logger.info(f"API: 正在启动实例：id={instance_id}")
 
     try:
         # 从数据库获取实例信息
@@ -269,30 +295,42 @@ async def start_instance(instance_id: str) -> JSONResponse:
             await session.commit()
             await session.refresh(db_instance)
 
-            logger.info(f"API: 实例已启动: id={instance_id}")
+            # 返回完整实例数据
+            instance_data = {
+                "id": db_instance.id,
+                "name": db_instance.name,
+                "qq_number": db_instance.qq_number,
+                "protocol": db_instance.protocol,
+                "status": db_instance.status,
+                "container_name": db_instance.container_name,
+                "port": db_instance.port,
+                "volume_path": db_instance.volume_path,
+                "description": db_instance.description,
+                "created_at": db_instance.created_at.isoformat()
+                if db_instance.created_at
+                else None,
+                "updated_at": db_instance.updated_at.isoformat()
+                if db_instance.updated_at
+                else None,
+            }
+
+            logger.info(f"API: 实例已启动：id={instance_id}")
 
             return JSONResponse(
-                content=success_response(
-                    data={
-                        "id": db_instance.id,
-                        "status": db_instance.status,
-                        "container_name": db_instance.container_name,
-                    },
-                    message="实例启动成功",
-                )
+                content=success_response(data=instance_data, message="实例启动成功")
             )
 
     except BotError as e:
-        logger.error(f"API: 启动实例失败: {e.message}")
+        logger.error(f"API: 启动实例失败：{e.message}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(message=e.message),
         )
     except Exception as e:
-        logger.error(f"API: 启动实例时发生未知错误: {e}", exc_info=True)
+        logger.error(f"API: 启动实例时发生未知错误：{e}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response(message=f"启动实例失败: {e}"),
+            content=error_response(message=f"启动实例失败：{e}"),
         )
 
 
@@ -311,7 +349,7 @@ async def stop_instance(instance_id: str) -> JSONResponse:
         JSONResponse: 包含停止结果的统一格式响应
 
     """
-    logger.info(f"API: 正在停止实例: id={instance_id}")
+    logger.info(f"API: 正在停止实例：id={instance_id}")
 
     try:
         # 从数据库获取实例信息
@@ -333,30 +371,42 @@ async def stop_instance(instance_id: str) -> JSONResponse:
             await session.commit()
             await session.refresh(db_instance)
 
-            logger.info(f"API: 实例已停止: id={instance_id}")
+            # 返回完整实例数据
+            instance_data = {
+                "id": db_instance.id,
+                "name": db_instance.name,
+                "qq_number": db_instance.qq_number,
+                "protocol": db_instance.protocol,
+                "status": db_instance.status,
+                "container_name": db_instance.container_name,
+                "port": db_instance.port,
+                "volume_path": db_instance.volume_path,
+                "description": db_instance.description,
+                "created_at": db_instance.created_at.isoformat()
+                if db_instance.created_at
+                else None,
+                "updated_at": db_instance.updated_at.isoformat()
+                if db_instance.updated_at
+                else None,
+            }
+
+            logger.info(f"API: 实例已停止：id={instance_id}")
 
             return JSONResponse(
-                content=success_response(
-                    data={
-                        "id": db_instance.id,
-                        "status": db_instance.status,
-                        "container_name": db_instance.container_name,
-                    },
-                    message="实例停止成功",
-                )
+                content=success_response(data=instance_data, message="实例停止成功")
             )
 
     except BotError as e:
-        logger.error(f"API: 停止实例失败: {e.message}")
+        logger.error(f"API: 停止实例失败：{e.message}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(message=e.message),
         )
     except Exception as e:
-        logger.error(f"API: 停止实例时发生未知错误: {e}", exc_info=True)
+        logger.error(f"API: 停止实例时发生未知错误：{e}", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response(message=f"停止实例失败: {e}"),
+            content=error_response(message=f"停止实例失败：{e}"),
         )
 
 
@@ -398,17 +448,29 @@ async def restart_instance(instance_id: str) -> JSONResponse:
             await session.commit()
             await session.refresh(db_instance)
 
-            logger.info(f"API: 实例已重启: id={instance_id}")
+            # 返回完整实例数据
+            instance_data = {
+                "id": db_instance.id,
+                "name": db_instance.name,
+                "qq_number": db_instance.qq_number,
+                "protocol": db_instance.protocol,
+                "status": db_instance.status,
+                "container_name": db_instance.container_name,
+                "port": db_instance.port,
+                "volume_path": db_instance.volume_path,
+                "description": db_instance.description,
+                "created_at": db_instance.created_at.isoformat()
+                if db_instance.created_at
+                else None,
+                "updated_at": db_instance.updated_at.isoformat()
+                if db_instance.updated_at
+                else None,
+            }
+
+            logger.info(f"API: 实例已重启：id={instance_id}")
 
             return JSONResponse(
-                content=success_response(
-                    data={
-                        "id": db_instance.id,
-                        "status": db_instance.status,
-                        "container_name": db_instance.container_name,
-                    },
-                    message="实例重启成功",
-                )
+                content=success_response(data=instance_data, message="实例重启成功")
             )
 
     except BotError as e:

@@ -99,6 +99,11 @@ class NapCatManager(BaseBotManager):
         qq_number: str,
         protocol: str = "napcat",
         description: Optional[str] = None,
+        port_web_ui: Optional[int] = None,
+        port_http: Optional[int] = None,
+        port_ws: Optional[int] = None,
+        napcat_uid: Optional[int] = None,
+        napcat_gid: Optional[int] = None,
     ) -> InstanceResponse:
         """创建新的 NapCat Bot 实例。
 
@@ -107,6 +112,11 @@ class NapCatManager(BaseBotManager):
             qq_number: QQ 号码
             protocol: Bot 协议（默认: napcat）
             description: 可选描述
+            port_web_ui: Web UI 端口（可选）
+            port_http: HTTP API 端口（可选，不指定则自动分配）
+            port_ws: WebSocket 端口（可选，不指定则使用 HTTP+1）
+            napcat_uid: NAPCAT_UID 用户ID（可选）
+            napcat_gid: NAPCAT_GID 组ID（可选）
 
         Returns:
             InstanceResponse: 创建的实例详情
@@ -118,14 +128,38 @@ class NapCatManager(BaseBotManager):
         """
         instance_id = generate_instance_id()
         container_name = generate_container_name(protocol, instance_id)
-        port = await allocate_port()
+
+        # 端口分配逻辑
+        # HTTP 端口为主端口，如果没指定则自动分配
+        http_port = port_http if port_http is not None else await allocate_port()
+        # WebSocket 端口如果没指定则使用 HTTP+1
+        ws_port = port_ws if port_ws is not None else http_port + 1
+        # Web UI 端口（可选）
+        web_ui_port = port_web_ui
+
         volume_path = generate_volume_path(instance_id, protocol)
+
+        # 构建环境变量
         env = format_container_env(qq_number, instance_id, protocol)
+        if napcat_uid is not None:
+            env["NAPCAT_UID"] = str(napcat_uid)
+        if napcat_gid is not None:
+            env["NAPCAT_GID"] = str(napcat_gid)
 
         logger.info(
             f"正在创建 NapCat 实例: name={name}, qq={qq_number}, "
-            f"instance_id={instance_id}, container={container_name}, port={port}"
+            f"instance_id={instance_id}, container={container_name}, "
+            f"http_port={http_port}, ws_port={ws_port}"
+            f"{', web_ui_port=' + str(web_ui_port) if web_ui_port else ''}"
         )
+
+        # 构建端口映射
+        ports_mapping = {
+            "3000/tcp": http_port,  # HTTP API
+            "3001/tcp": ws_port,  # WebSocket
+        }
+        if web_ui_port:
+            ports_mapping["6099/tcp"] = web_ui_port  # Web UI (如果指定)
 
         now = datetime.utcnow()
         db_instance = BotInstanceDB(
@@ -135,7 +169,7 @@ class NapCatManager(BaseBotManager):
             protocol=protocol,
             status=InstanceStatus.CREATED.value,
             container_name=container_name,
-            port=port,
+            port=http_port,  # 主端口存储 HTTP 端口
             volume_path=str(volume_path),
             description=description,
             created_at=now,
@@ -150,7 +184,7 @@ class NapCatManager(BaseBotManager):
             container = self.client.containers.run(
                 image=settings.napcat_image,
                 name=container_name,
-                ports={"3000/tcp": port},
+                ports=ports_mapping,
                 volumes=get_docker_volume_bind(volume_path),
                 environment=env,
                 detach=True,
@@ -159,9 +193,6 @@ class NapCatManager(BaseBotManager):
             logger.info(f"容器创建成功: {container_name}")
 
             # 更新 DB 为 RUNNING，并记录实际信息
-            db_instance.container_name = container_name
-            db_instance.port = port
-            db_instance.volume_path = str(volume_path)
             db_instance.status = InstanceStatus.RUNNING.value
             db_instance.updated_at = datetime.utcnow()
             db_instance = await update_instance(db_instance)

@@ -40,9 +40,14 @@ async def docker_status() -> JSONResponse:
         status.HTTP_200_OK if result["running"] else status.HTTP_503_SERVICE_UNAVAILABLE
     )
 
+    # 使用统一响应格式
     return JSONResponse(
         status_code=http_status,
-        content=result,
+        content={
+            "success": result["running"],
+            "message": result["message"],
+            "data": result,
+        },
     )
 
 

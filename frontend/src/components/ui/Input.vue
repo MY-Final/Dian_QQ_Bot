@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   modelValue: string | number
   label?: string
   type?: string
@@ -7,7 +7,7 @@ defineProps<{
   required?: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 </script>

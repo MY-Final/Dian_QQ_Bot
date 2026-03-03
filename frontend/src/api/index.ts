@@ -54,6 +54,13 @@ export interface InstanceCreate {
   qq_number: string
   protocol?: 'napcat' | 'llonebot' | 'custom'
   description?: string
+  // 端口配置
+  port_web_ui?: number  // Web UI 端口（可选）
+  port_http?: number    // HTTP API 端口（可选，不指定则自动分配）
+  port_ws?: number      // WebSocket 端口（可选，不指定则使用 HTTP+1）
+  // NapCat 环境变量配置
+  napcat_uid?: number   // NAPCAT_UID 用户ID
+  napcat_gid?: number   // NAPCAT_GID 组ID
 }
 
 // ============ API 方法 ============

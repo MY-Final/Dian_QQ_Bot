@@ -14,7 +14,7 @@ async function fetchLogs() {
   loading.value = true
   try {
     const response = await instanceApi.logs(instanceId.value, 100)
-    logs.value = response.data.logs || '暂无日志'
+    logs.value = response.data.data?.logs || '暂无日志'
   } catch (e) {
     logs.value = '获取日志失败'
   } finally {

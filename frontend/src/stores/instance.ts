@@ -5,7 +5,6 @@ import {
   systemApi,
   type Instance, 
   type InstanceCreate,
-  type ApiResponse 
 } from '../api'
 
 // ============ 系统状态 Store ============
@@ -53,7 +52,7 @@ export const useSystemStore = defineStore('system', () => {
     error.value = null
     try {
       const response = await systemApi.dockerStatus()
-      dockerStatus.value = response.data.data
+      dockerStatus.value = response.data.data || null
       return response.data.success
     } catch (e: any) {
       error.value = e.response?.data?.message || e.message || '检查 Docker 状态失败'
@@ -75,7 +74,7 @@ export const useSystemStore = defineStore('system', () => {
     error.value = null
     try {
       const response = await systemApi.databaseStatus()
-      databaseStatus.value = response.data.data
+      databaseStatus.value = response.data.data || null
       return response.data.success
     } catch (e: any) {
       error.value = e.response?.data?.message || e.message || '检查数据库状态失败'
@@ -130,6 +129,7 @@ export const useInstanceStore = defineStore('instances', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const lastFetchTime = ref<Date | null>(null)
+  const actionInstance = ref<string | null>(null) // 正在操作的实例 ID
 
   // Getters
   const runningInstances = computed(() => 
@@ -180,7 +180,7 @@ export const useInstanceStore = defineStore('instances', () => {
     error.value = null
     try {
       const response = await instanceApi.get(id)
-      if (response.data.success) {
+      if (response.data.success && response.data.data) {
         currentInstance.value = response.data.data
         // 更新列表中的实例
         updateInstanceInList(response.data.data)
@@ -221,6 +221,7 @@ export const useInstanceStore = defineStore('instances', () => {
   async function startInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
+    actionInstance.value = id
     try {
       const response = await instanceApi.start(id)
       if (response.data.success && response.data.data) {
@@ -235,12 +236,14 @@ export const useInstanceStore = defineStore('instances', () => {
       return false
     } finally {
       loading.value = false
+      actionInstance.value = null
     }
   }
 
   async function stopInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
+    actionInstance.value = id
     try {
       const response = await instanceApi.stop(id)
       if (response.data.success && response.data.data) {
@@ -255,6 +258,7 @@ export const useInstanceStore = defineStore('instances', () => {
       return false
     } finally {
       loading.value = false
+      actionInstance.value = null
     }
   }
 
@@ -281,6 +285,7 @@ export const useInstanceStore = defineStore('instances', () => {
   async function deleteInstance(id: string): Promise<boolean> {
     loading.value = true
     error.value = null
+    actionInstance.value = id
     try {
       const response = await instanceApi.delete(id)
       if (response.data.success) {
@@ -298,6 +303,7 @@ export const useInstanceStore = defineStore('instances', () => {
       return false
     } finally {
       loading.value = false
+      actionInstance.value = null
     }
   }
 
@@ -319,6 +325,7 @@ export const useInstanceStore = defineStore('instances', () => {
     loading,
     error,
     lastFetchTime,
+    actionInstance,
     // 计算属性
     runningInstances,
     stoppedInstances,

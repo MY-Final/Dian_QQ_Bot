@@ -34,6 +34,22 @@ class InstanceCreate(BaseModel):
     qq_number: str = Field(..., min_length=5, max_length=15, description="QQ 号码")
     protocol: ProtocolType = Field(default=ProtocolType.NAPCAT, description="Bot 协议")
     description: Optional[str] = Field(None, max_length=500, description="可选描述")
+    # 端口配置
+    port_web_ui: Optional[int] = Field(
+        None, ge=1024, le=65535, description="Web UI 端口（可选）"
+    )
+    port_http: Optional[int] = Field(
+        None, ge=1024, le=65535, description="HTTP API 端口（可选，不指定则自动分配）"
+    )
+    port_ws: Optional[int] = Field(
+        None,
+        ge=1024,
+        le=65535,
+        description="WebSocket 端口（可选，不指定则使用 HTTP+1）",
+    )
+    # NapCat 环境变量配置
+    napcat_uid: Optional[int] = Field(None, ge=0, description="NAPCAT_UID 用户ID")
+    napcat_gid: Optional[int] = Field(None, ge=0, description="NAPCAT_GID 组ID")
 
 
 class InstanceResponse(BaseModel):
