@@ -155,9 +155,7 @@ export function useSetupWizard() {
         database: dbConfig.value,
       })
       if (response.data.success) {
-        // 存储数据库配置到 sessionStorage
-        sessionStorage.setItem('db_config', JSON.stringify(dbConfig.value))
-        // 标记刚刚完成初始化
+        // 标记刚刚完成初始化（用于路由守卫）
         sessionStorage.setItem('just_initialized', 'true')
         currentStep.value = 5  // 跳转到完成页面
         return { success: true, message: '管理员创建成功，系统初始化完成' }

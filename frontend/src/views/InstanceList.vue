@@ -80,11 +80,23 @@ function closeModal() {
 }
 
 async function handleCreate() {
-  const result = await store.createInstance({
+  // 构建完整的请求体
+  const createData: any = {
     name: formName.value,
     qq_number: '123456789',
     protocol: formFramework.value as 'napcat' | 'llonebot' | 'custom',
-  })
+  }
+  
+  // 如果是 NapCat，添加端口和环境变量配置
+  if (formFramework.value === 'napcat') {
+    if (formWebPort.value) createData.port_web_ui = formWebPort.value
+    if (formHttpPort.value) createData.port_http = formHttpPort.value
+    if (formWsPort.value) createData.port_ws = formWsPort.value
+    if (formUid.value) createData.napcat_uid = formUid.value
+    if (formGid.value) createData.napcat_gid = formGid.value
+  }
+  
+  const result = await store.createInstance(createData)
   if (result) {
     closeModal()
     toast.success(`实例 "${formName.value}" 创建成功！`)

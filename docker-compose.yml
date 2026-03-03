@@ -1,24 +1,89 @@
 version: '3.8'
 
 services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: dian-qq-bot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: ${DB_NAME:-dian_bot}
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - dian_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-dian_bot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端 API 服务
   api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./backend
+      dockerfile: ../Dockerfile.backend
     container_name: dian-qq-bot-api
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      # 数据库配置（使用 docker 内部网络）
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-dian_bot}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres123}
+      # 应用配置
       - DEBUG=${DEBUG:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HOST=0.0.0.0
+      - PORT=8000
+      # Docker 配置
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - CONTAINER_PREFIX=dian
+      - NAPCAT_IMAGE=mlikiowa/napcat-docker:latest
+      - PORT_RANGE_START=30000
+      - PORT_RANGE_END=40000
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./instances:/app/instances
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dian_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务（可选，如果需要独立部署前端）
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
+    container_name: dian-qq-bot-frontend
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - api
+    networks:
+      - dian_network
+
+networks:
+  dian_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

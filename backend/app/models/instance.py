@@ -55,15 +55,21 @@ class InstanceCreate(BaseModel):
 class InstanceResponse(BaseModel):
     """Bot 实例的响应模型。"""
 
+    class Config:
+        # 即使字段为 None 也要包含在响应中
+        extra = "ignore"
+
     id: str = Field(..., description="实例唯一 ID")
     name: str = Field(..., description="实例名称")
     qq_number: str = Field(..., description="QQ 号码")
     protocol: ProtocolType = Field(..., description="Bot 协议")
     status: InstanceStatus = Field(..., description="实例状态")
     container_name: str = Field(..., description="Docker 容器名称")
-    port: int = Field(..., description="暴露端口")
+    port: int = Field(..., description="HTTP 端口")
+    port_web_ui: Optional[int] = Field(default=None, description="Web UI 端口")
+    port_ws: Optional[int] = Field(default=None, description="WebSocket 端口")
     volume_path: str = Field(..., description="卷挂载路径")
-    description: Optional[str] = Field(None, description="可选描述")
+    description: Optional[str] = Field(default=None, description="可选描述")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="最后更新时间")
 

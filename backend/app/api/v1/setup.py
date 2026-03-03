@@ -67,32 +67,92 @@ class CreateAdminRequest(BaseModel):
 
 @router.get("/status", summary="检查系统初始化状态")
 async def get_setup_status(
-    host: str,
-    port: int,
-    database: str,
-    username: str,
-    password: str,
+    host: str | None = None,
+    port: int | None = None,
+    database: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
 ) -> JSONResponse:
     """检查系统初始化状态。
 
-    使用 Setup 向导中配置的数据库进行检查。
+    优先级：
+    1. 如果提供了参数，使用提供的配置（用于 Setup 向导中）
+    2. 否则使用已保存的配置（db_config.json）
 
     Args:
-        host: 数据库主机
-        port: 数据库端口
-        database: 数据库名称
-        username: 数据库用户名
-        password: 数据库密码
+        host: 数据库主机（可选）
+        port: 数据库端口（可选）
+        database: 数据库名称（可选）
+        username: 数据库用户名（可选）
+        password: 数据库密码（可选）
 
     Returns:
         JSONResponse: 初始化状态信息
     """
-    logger.info(f"检查系统初始化状态：{host}:{port}/{database}")
+    logger.info(f"检查系统初始化状态")
 
     try:
-        # 使用前端传递的数据库配置
-        database_url = (
-            f"postgresql+asyncpg://{username}:{password}@{host}:{port}/{database}"
+        # 如果提供了参数，使用提供的配置
+        if all([host, port, database, username, password]):
+            database_url = (
+                f"postgresql+asyncpg://{username}:{password}@{host}:{port}/{database}"
+            )
+            logger.info(f"使用提供的配置：{host}:{port}/{database}")
+        else:
+            # 使用已保存的配置
+            from app.core.db_config_manager import DatabaseConfig as AppConfig
+
+            saved_config = AppConfig.load()
+
+            if not saved_config:
+                # 没有保存的配置，返回未初始化
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content=success_response(
+                        data={"initialized": False},
+                        message="系统未初始化",
+                    ),
+                )
+
+            database_url = saved_config.database_url
+            logger.info(
+                f"使用已保存的配置：{saved_config.host}:{saved_config.port}/{saved_config.database}"
+            )
+
+        # 创建临时引擎
+        temp_engine = create_async_engine(
+            database_url,
+            echo=False,
+            future=True,
+        )
+
+        # 检查是否已初始化
+        async with temp_engine.begin() as conn:
+            result = await conn.execute(
+                text("SELECT value FROM system_settings WHERE key = 'initialized'")
+            )
+            row = result.first()
+            is_initialized = row is not None and row[0] == "true"
+
+        # 关闭引擎
+        await temp_engine.dispose()
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=success_response(
+                data={"initialized": is_initialized},
+                message="系统已初始化" if is_initialized else "系统未初始化",
+            ),
+        )
+    except Exception as e:
+        # 如果查询失败，说明表还没创建，返回未初始化
+        logger.warning(f"检查初始化状态失败（可能表未创建）: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=success_response(
+                data={"initialized": False},
+                message="系统未初始化",
+            ),
         )
 
         # 创建临时引擎

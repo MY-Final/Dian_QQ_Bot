@@ -53,26 +53,8 @@ router.beforeEach(async (to, from, next) => {
   }
   
   try {
-    // 从 sessionStorage 获取数据库配置
-    const dbConfigStr = sessionStorage.getItem('db_config')
-    
-    if (!dbConfigStr) {
-      // 没有数据库配置，重定向到 setup
-      return next('/setup')
-    }
-    
-    const dbConfig = JSON.parse(dbConfigStr)
-    
-    // 使用数据库配置检查初始化状态
-    const params = new URLSearchParams({
-      host: dbConfig.host,
-      port: dbConfig.port.toString(),
-      database: dbConfig.database,
-      username: dbConfig.username,
-      password: dbConfig.password,
-    })
-    
-    const response = await fetch('/api/v1/setup/status?' + params)
+    // 直接调用接口，后端会自动使用已保存的配置
+    const response = await fetch('/api/v1/setup/status')
     const data = await response.json()
     
     if (!data.data?.initialized) {

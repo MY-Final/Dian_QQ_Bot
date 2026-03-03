@@ -27,7 +27,13 @@ class BotInstanceDB(Base):
     protocol: Mapped[str] = mapped_column(String(20), nullable=False, default="napcat")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="created")
     container_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    port: Mapped[int] = mapped_column(Integer, nullable=False)  # HTTP 端口
+    port_web_ui: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )  # Web UI 端口
+    port_ws: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )  # WebSocket 端口
     volume_path: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

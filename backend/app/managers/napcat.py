@@ -79,6 +79,10 @@ class NapCatManager(BaseBotManager):
             InstanceResponse: 响应模式
 
         """
+        logger.info(
+            f"Converting DB to response: id={db_instance.id}, port_web_ui={db_instance.port_web_ui}, port_ws={db_instance.port_ws}"
+        )
+
         return InstanceResponse(
             id=db_instance.id,
             name=db_instance.name,
@@ -87,6 +91,8 @@ class NapCatManager(BaseBotManager):
             status=InstanceStatus(db_instance.status),
             container_name=db_instance.container_name,
             port=db_instance.port,
+            port_web_ui=db_instance.port_web_ui,
+            port_ws=db_instance.port_ws,
             volume_path=db_instance.volume_path,
             description=db_instance.description,
             created_at=db_instance.created_at,
@@ -162,6 +168,7 @@ class NapCatManager(BaseBotManager):
             ports_mapping["6099/tcp"] = web_ui_port  # Web UI (如果指定)
 
         now = datetime.utcnow()
+
         db_instance = BotInstanceDB(
             id=instance_id,
             name=name,
@@ -170,6 +177,8 @@ class NapCatManager(BaseBotManager):
             status=InstanceStatus.CREATED.value,
             container_name=container_name,
             port=http_port,  # 主端口存储 HTTP 端口
+            port_web_ui=web_ui_port if web_ui_port else None,
+            port_ws=ws_port if ws_port else None,
             volume_path=str(volume_path),
             description=description,
             created_at=now,

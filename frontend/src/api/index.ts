@@ -114,20 +114,7 @@ export const systemApi = {
  */
 export const setupApi = {
   /** 获取初始化状态 */
-  getStatus: (dbConfig?: DatabaseConfig) => {
-    if (dbConfig) {
-      return api.get<ApiResponse<{ initialized: boolean }>>('/setup/status', {
-        params: {
-          host: dbConfig.host,
-          port: dbConfig.port,
-          database: dbConfig.database,
-          username: dbConfig.username,
-          password: dbConfig.password,
-        },
-      })
-    }
-    return api.get<ApiResponse<{ initialized: boolean }>>('/setup/status')
-  },
+  getStatus: () => api.get<ApiResponse<{ initialized: boolean }>>('/setup/status'),
   
   /** 测试数据库连接 */
   testConnection: (config: DatabaseConfig) => api.post<ApiResponse<{ connected: boolean }>>('/setup/test-db-connection', config),

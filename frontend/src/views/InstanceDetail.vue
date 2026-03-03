@@ -447,8 +447,12 @@ function clearLogs() {
 
             <!-- 网络信息 -->
             <div class="space-y-4">
-              <h3 class="text-sm font-medium text-gray-900 border-b pb-2">网络信息</h3>
+              <h3 class="text-sm font-semibold text-gray-900 border-b pb-2">网络信息</h3>
               <div class="space-y-3">
+                <div>
+                  <p class="text-xs text-gray-500 mb-0.5">Web UI 端口</p>
+                  <p class="text-sm font-medium text-gray-900 font-mono">{{ instance.port_web_ui || '-' }}</p>
+                </div>
                 <div>
                   <p class="text-xs text-gray-500 mb-0.5">HTTP 端口</p>
                   <p class="text-sm font-medium text-gray-900 font-mono">{{ instance.port || '-' }}</p>

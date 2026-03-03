@@ -236,6 +236,8 @@ async def get_instance(instance_id: str) -> JSONResponse:
                 "status": status_str,
                 "container_name": db_instance.container_name,
                 "port": db_instance.port,
+                "port_web_ui": db_instance.port_web_ui,
+                "port_ws": db_instance.port_ws,
                 "volume_path": db_instance.volume_path,
                 "description": db_instance.description,
                 "created_at": db_instance.created_at.isoformat()
