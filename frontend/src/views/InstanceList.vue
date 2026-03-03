@@ -16,7 +16,7 @@ const store = useInstanceStore()
 const toast = useToast()
 
 // 使用 Docker 状态 composable
-const { dockerStatus, loading: dockerLoading, statusText, statusClass, dotClass, fetchDockerStatus } = useDockerStatus()
+const { dockerStatus, loading: dockerLoading, fetchDockerStatus } = useDockerStatus()
 
 // Modal state
 const showCreateModal = ref(false)

@@ -39,7 +39,7 @@ const router = createRouter({
 })
 
 // 路由守卫：检查初始化状态
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   // 如果是 setup 页面，直接放行
   if (to.name === 'setup') {
     return next()

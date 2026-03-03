@@ -14,6 +14,7 @@ interface Emits {
   (e: 'toggle:dbMode'): void
   (e: 'toggle:password', field: 'db'): void
   (e: 'test'): void
+  (e: 'submit'): void
 }
 
 const props = defineProps<Props>()

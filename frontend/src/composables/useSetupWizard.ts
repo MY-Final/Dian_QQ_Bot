@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { setupApi } from '@/api'
 import type { DatabaseConfig } from '@/types/setup'
 
@@ -32,7 +32,7 @@ export function useSetupWizard() {
     username: '',
     email: '',
     password: '',
-    confirm_password: '',
+    confirmPassword: '',
   })
   
   // 状态标记
@@ -101,7 +101,7 @@ export function useSetupWizard() {
   }
   
   // 测试数据库连接
-  async function testConnection() {
+  async function testConnection(): Promise<{ success: boolean; message?: string }> {
     testingConnection.value = true
     dbConnected.value = false
     
@@ -121,7 +121,7 @@ export function useSetupWizard() {
   }
   
   // 初始化数据库表
-  async function initializeDb() {
+  async function initializeDb(): Promise<{ success: boolean; message?: string }> {
     initializingDb.value = true
     dbInitialized.value = false
     
@@ -141,7 +141,7 @@ export function useSetupWizard() {
   }
   
   // 创建管理员账号
-  async function createAdmin() {
+  async function createAdmin(): Promise<{ success: boolean; message?: string }> {
     creatingAdmin.value = true
     
     try {
@@ -170,7 +170,7 @@ export function useSetupWizard() {
   }
   
   // 验证步骤 2（数据库配置）
-  function validateStep2() {
+  function validateStep2(): { valid: boolean; message?: string } {
     if (dbMode.value && !dbConnected.value) {
       return { valid: false, message: '请先测试数据库连接' }
     }
@@ -178,7 +178,7 @@ export function useSetupWizard() {
   }
   
   // 验证步骤 4（管理员配置）
-  function validateStep4() {
+  function validateStep4(): { valid: boolean; message?: string } {
     const { username, email, password, confirmPassword } = adminConfig.value
     
     if (!username || !email || !password) {
@@ -204,7 +204,7 @@ export function useSetupWizard() {
   }
   
   // 下一步
-  async function nextStep() {
+  async function nextStep(): Promise<{ success: boolean; message?: string }> {
     if (currentStep.value === 1) {
       // 步骤 1 → 步骤 2
       currentStep.value = 2

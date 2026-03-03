@@ -43,6 +43,8 @@ export interface Instance {
   status: 'created' | 'running' | 'stopped' | 'error'
   container_name: string
   port: number
+  port_web_ui?: number
+  port_ws?: number
   volume_path: string
   description?: string
   created_at: string

@@ -22,7 +22,6 @@ const {
   showConfirmPassword,
   toggleDbMode,
   togglePassword,
-  getPasswordType,
   testConnection,
   nextStep,
   prevStep,
@@ -58,7 +57,7 @@ function showToast(message: string, isError: boolean) {
 // 处理下一步
 async function handleNext() {
   const result = await nextStep()
-  if (!result.success && result.message) {
+  if (!result.success && 'message' in result && result.message) {
     showToast(result.message, true)
   }
 }

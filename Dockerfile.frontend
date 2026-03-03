@@ -4,13 +4,13 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # 复制 package 文件
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 # 安装依赖
 RUN npm ci
 
 # 复制源代码
-COPY . .
+COPY frontend/ .
 
 # 构建生产版本
 RUN npm run build
