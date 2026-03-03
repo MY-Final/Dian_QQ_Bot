@@ -34,6 +34,7 @@ const confirmModal = ref({
 
 // Form state
 const formName = ref('dian-bot')
+const formQqNumber = ref('')
 const formFramework = ref('napcat')
 const formWebPort = ref(6099)
 const formHttpPort = ref(3000)
@@ -41,6 +42,7 @@ const formWsPort = ref(3001)
 const formUid = ref(1000)
 const formGid = ref(1000)
 const formLlPort = ref(3080)
+const formDescription = ref('')
 
 const frameworkOptions = [
   { value: 'napcat', label: 'NapCat Docker' },
@@ -80,11 +82,18 @@ function closeModal() {
 }
 
 async function handleCreate() {
+  // 验证 QQ 号
+  if (!formQqNumber.value || formQqNumber.value.length < 5) {
+    toast.error('请输入有效的 QQ 号码（至少 5 位）')
+    return
+  }
+  
   // 构建完整的请求体
   const createData: any = {
     name: formName.value,
-    qq_number: '123456789',
+    qq_number: formQqNumber.value,
     protocol: formFramework.value as 'napcat' | 'llonebot' | 'custom',
+    description: formDescription.value || undefined,
   }
   
   // 如果是 NapCat，添加端口和环境变量配置
@@ -100,6 +109,7 @@ async function handleCreate() {
   if (result) {
     closeModal()
     toast.success(`实例 "${formName.value}" 创建成功！`)
+    formQqNumber.value = '' // 清空 QQ 号
   }
 }
 
@@ -497,6 +507,7 @@ async function handleRefresh() {
     @close="closeModal"
   >
     <form class="space-y-4" @submit.prevent="handleCreate">
+      <!-- 基本信息 -->
       <div class="grid grid-cols-2 gap-4">
         <Input
           v-model="formName"
@@ -504,10 +515,25 @@ async function handleRefresh() {
           placeholder="dian-bot"
           required
         />
+        <Input
+          v-model="formQqNumber"
+          label="QQ 号码"
+          placeholder="123456789"
+          required
+          min-length="5"
+        />
+      </div>
+      
+      <div class="grid grid-cols-2 gap-4">
         <Select
           v-model="formFramework"
           label="选择框架"
           :options="frameworkOptions"
+        />
+        <Input
+          v-model="formDescription"
+          label="描述（可选）"
+          placeholder="我的 QQ Bot"
         />
       </div>
 

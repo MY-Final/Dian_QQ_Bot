@@ -231,35 +231,40 @@ class NapCatManager(BaseBotManager):
             BotStartError: 如果启动失败
 
         """
-        logger.info(f"正在启动 NapCat 实例: instance_id={instance_id}")
+        from app.database import get_session_maker
+        from sqlalchemy import select
+        
+        logger.info(f"正在启动 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.start()
-            logger.info(f"NapCat 实例已启动: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已启动：instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"容器未找到: {container_name}")
+            logger.error(f"容器未找到：{container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"启动容器失败: {e}", exc_info=True)
+            logger.error(f"启动容器失败：{e}", exc_info=True)
             raise BotStartError(instance_id) from e
 
-        now = datetime.utcnow()
-        db_instance = BotInstanceDB(
-            id=instance_id,
-            name="temp",
-            qq_number="0",
-            protocol="napcat",
-            status=InstanceStatus.RUNNING.value,
-            container_name=container_name,
-            port=30000,
-            volume_path="",
-            created_at=now,
-            updated_at=now,
-        )
+        # 从数据库读取真实数据
+        async with get_session_maker()() as session:
+            result = await session.execute(
+                select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
+            )
+            db_instance = result.scalar_one_or_none()
+            
+            if not db_instance:
+                raise BotNotFoundError(instance_id)
+            
+            # 更新状态
+            db_instance.status = InstanceStatus.RUNNING.value
+            db_instance.updated_at = datetime.utcnow()
+            await session.commit()
+            await session.refresh(db_instance)
 
         return self._db_to_response(db_instance)
 
@@ -277,35 +282,40 @@ class NapCatManager(BaseBotManager):
             BotStopError: 如果停止失败
 
         """
-        logger.info(f"正在停止 NapCat 实例: instance_id={instance_id}")
+        from app.database import get_session_maker
+        from sqlalchemy import select
+        
+        logger.info(f"正在停止 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.stop(timeout=10)
-            logger.info(f"NapCat 实例已停止: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已停止：instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"容器未找到: {container_name}")
+            logger.error(f"容器未找到：{container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"停止容器失败: {e}", exc_info=True)
+            logger.error(f"停止容器失败：{e}", exc_info=True)
             raise BotStopError(instance_id) from e
 
-        now = datetime.utcnow()
-        db_instance = BotInstanceDB(
-            id=instance_id,
-            name="temp",
-            qq_number="0",
-            protocol="napcat",
-            status=InstanceStatus.STOPPED.value,
-            container_name=container_name,
-            port=30000,
-            volume_path="",
-            created_at=now,
-            updated_at=now,
-        )
+        # 从数据库读取真实数据
+        async with get_session_maker()() as session:
+            result = await session.execute(
+                select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
+            )
+            db_instance = result.scalar_one_or_none()
+            
+            if not db_instance:
+                raise BotNotFoundError(instance_id)
+            
+            # 更新状态
+            db_instance.status = InstanceStatus.STOPPED.value
+            db_instance.updated_at = datetime.utcnow()
+            await session.commit()
+            await session.refresh(db_instance)
 
         return self._db_to_response(db_instance)
 
@@ -323,35 +333,40 @@ class NapCatManager(BaseBotManager):
             BotError: 如果重启失败
 
         """
-        logger.info(f"正在重启 NapCat 实例: instance_id={instance_id}")
+        from app.database import get_session_maker
+        from sqlalchemy import select
+        
+        logger.info(f"正在重启 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
 
         try:
             container = self.client.containers.get(container_name)
             container.restart(timeout=10)
-            logger.info(f"NapCat 实例已重启: instance_id={instance_id}")
+            logger.info(f"NapCat 实例已重启：instance_id={instance_id}")
 
         except NotFound:
-            logger.error(f"容器未找到: {container_name}")
+            logger.error(f"容器未找到：{container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
-            logger.error(f"重启容器失败: {e}", exc_info=True)
-            raise BotError(f"重启容器失败: {e}") from e
+            logger.error(f"重启容器失败：{e}", exc_info=True)
+            raise BotError(f"重启容器失败：{e}") from e
 
-        now = datetime.utcnow()
-        db_instance = BotInstanceDB(
-            id=instance_id,
-            name="temp",
-            qq_number="0",
-            protocol="napcat",
-            status=InstanceStatus.RUNNING.value,
-            container_name=container_name,
-            port=30000,
-            volume_path="",
-            created_at=now,
-            updated_at=now,
-        )
+        # 从数据库读取真实数据
+        async with get_session_maker()() as session:
+            result = await session.execute(
+                select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
+            )
+            db_instance = result.scalar_one_or_none()
+            
+            if not db_instance:
+                raise BotNotFoundError(instance_id)
+            
+            # 更新状态
+            db_instance.status = InstanceStatus.RUNNING.value
+            db_instance.updated_at = datetime.utcnow()
+            await session.commit()
+            await session.refresh(db_instance)
 
         return self._db_to_response(db_instance)
 

@@ -100,12 +100,11 @@ async def get_setup_status(
             logger.info(f"使用提供的配置：{host}:{port}/{database}")
         else:
             # 使用已保存的配置
-            from app.core.db_config_manager import DatabaseConfig as AppConfig
-
             saved_config = AppConfig.load()
 
             if not saved_config:
                 # 没有保存的配置，返回未初始化
+                logger.info("数据库配置文件不存在，系统未初始化")
                 return JSONResponse(
                     status_code=status.HTTP_200_OK,
                     content=success_response(
@@ -118,42 +117,6 @@ async def get_setup_status(
             logger.info(
                 f"使用已保存的配置：{saved_config.host}:{saved_config.port}/{saved_config.database}"
             )
-
-        # 创建临时引擎
-        temp_engine = create_async_engine(
-            database_url,
-            echo=False,
-            future=True,
-        )
-
-        # 检查是否已初始化
-        async with temp_engine.begin() as conn:
-            result = await conn.execute(
-                text("SELECT value FROM system_settings WHERE key = 'initialized'")
-            )
-            row = result.first()
-            is_initialized = row is not None and row[0] == "true"
-
-        # 关闭引擎
-        await temp_engine.dispose()
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=success_response(
-                data={"initialized": is_initialized},
-                message="系统已初始化" if is_initialized else "系统未初始化",
-            ),
-        )
-    except Exception as e:
-        # 如果查询失败，说明表还没创建，返回未初始化
-        logger.warning(f"检查初始化状态失败（可能表未创建）: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=success_response(
-                data={"initialized": False},
-                message="系统未初始化",
-            ),
-        )
 
         # 创建临时引擎
         temp_engine = create_async_engine(
