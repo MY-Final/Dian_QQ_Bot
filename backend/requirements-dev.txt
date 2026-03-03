@@ -1,18 +1,15 @@
-# Development dependencies
+# 包含生产依赖
 -r requirements.txt
 
-# Testing
-pytest==7.4.4
-pytest-asyncio==0.23.3
-pytest-cov==4.1.0
-
-# Linting & Formatting
-black==24.1.1
+# 开发工具
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-asyncio==0.25.2
+black==25.1.0
 isort==5.13.2
-flake8==7.0.0
+flake8==7.1.1
+mypy==1.15.0
+ruff==0.12.5
 
-# Type checking
-mypy==1.8.0
-
-# Pre-commit
-pre-commit==3.6.0
+# Windows 专用（仅本地开发）
+pywin32==311; sys_platform == 'win32'
