@@ -471,7 +471,7 @@ async function handleRefresh() {
           </span>
         </div>
         <div v-if="store.lastFetchTime" class="text-xs">
-          上次更新: {{ store.lastFetchTime.toLocaleTimeString() }}
+          上次更新：{{ store.lastFetchTime.toLocaleTimeString() }}
         </div>
       </div>
     </div>

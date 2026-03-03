@@ -42,16 +42,16 @@ class Settings(BaseSettings):
     port_range_start: int = Field(default=30000, env="PORT_RANGE_START")
     port_range_end: int = Field(default=40000, env="PORT_RANGE_END")
 
-    # 数据库配置
-    db_host: str = Field(default="116.62.31.219", env="DB_HOST")
-    db_port: int = Field(default=5433, env="DB_PORT")
-    db_name: str = Field(default="postgres", env="DB_NAME")
+    # 数据库配置（应用自身使用的数据库，存储 Bot 实例等数据）
+    db_host: str = Field(default="localhost", env="DB_HOST")
+    db_port: int = Field(default=5432, env="DB_PORT")
+    db_name: str = Field(default="dian_bot", env="DB_NAME")
     db_user: str = Field(default="postgres", env="DB_USER")
-    db_password: str = Field(default="admin123", env="DB_PASSWORD")
+    db_password: str = Field(default="postgres", env="DB_PASSWORD")
 
     @property
     def database_url(self) -> str:
-        """构建数据库连接 URL。"""
+        """构建数据库连接 URL（应用自身使用的数据库）。"""
         return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # 日志配置
@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # 忽略额外的配置项
 
     def __init__(self, **kwargs) -> None:
         """初始化配置并确保必要目录存在。"""

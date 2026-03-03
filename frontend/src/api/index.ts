@@ -59,8 +59,28 @@ export interface InstanceCreate {
   port_http?: number    // HTTP API 端口（可选，不指定则自动分配）
   port_ws?: number      // WebSocket 端口（可选，不指定则使用 HTTP+1）
   // NapCat 环境变量配置
-  napcat_uid?: number   // NAPCAT_UID 用户ID
-  napcat_gid?: number   // NAPCAT_GID 组ID
+  napcat_uid?: number   // NAPCAT_UID 用户 ID
+  napcat_gid?: number   // NAPCAT_GID 组 ID
+}
+
+// 系统初始化相关
+export interface DatabaseConfig {
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+}
+
+export interface AdminConfig {
+  username: string
+  email: string
+  password: string
+}
+
+export interface InitializeRequest {
+  database: DatabaseConfig
+  admin: AdminConfig
 }
 
 // ============ API 方法 ============
@@ -90,6 +110,37 @@ export const systemApi = {
 }
 
 /**
+ * 系统初始化 API
+ */
+export const setupApi = {
+  /** 获取初始化状态 */
+  getStatus: (dbConfig?: DatabaseConfig) => {
+    if (dbConfig) {
+      return api.get<ApiResponse<{ initialized: boolean }>>('/setup/status', {
+        params: {
+          host: dbConfig.host,
+          port: dbConfig.port,
+          database: dbConfig.database,
+          username: dbConfig.username,
+          password: dbConfig.password,
+        },
+      })
+    }
+    return api.get<ApiResponse<{ initialized: boolean }>>('/setup/status')
+  },
+  
+  /** 测试数据库连接 */
+  testConnection: (config: DatabaseConfig) => api.post<ApiResponse<{ connected: boolean }>>('/setup/test-db-connection', config),
+  
+  /** 初始化数据库表 */
+  initializeDb: (config: DatabaseConfig) => api.post<ApiResponse<{ initialized: boolean }>>('/setup/initialize-db', config),
+  
+  /** 创建管理员账号 */
+  createAdmin: (data: { admin: { username: string; email: string; password: string; confirm_password: string }; database: DatabaseConfig }) => 
+    api.post<ApiResponse<{ initialized: boolean; username: string }>>('/setup/create-admin', data),
+}
+
+/**
  * Bot 实例管理 API
  */
 export const instanceApi = {
@@ -115,11 +166,9 @@ export const instanceApi = {
   delete: (id: string) => api.delete<ApiResponse<{ id: string }>>(`/instances/${id}`),
   
   /** 获取实例日志 */
-  logs: (id: string, tail: number = 100) => api.get<ApiResponse<{ logs: string; instance_id: string; tail: number }>>(`/instances/${id}/logs`, {
-    params: { tail }
-  }),
+  logs: (id: string, tail: number = 100) => 
+    api.get<ApiResponse<{ logs: string; instance_id: string; tail: number }>>(
+      `/instances/${id}/logs`,
+      { params: { tail } }
+    ),
 }
-
-// 统一导出
-export { api }
-export default api

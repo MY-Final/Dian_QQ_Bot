@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from app.core.exceptions import BotError
-from app.database import async_session_maker
+from app.database import get_session_maker
 from app.managers.napcat import NapCatManager
 from app.models.db_models import BotInstanceDB
 from app.models.instance import (
@@ -147,7 +147,7 @@ async def list_instances() -> JSONResponse:
 
     try:
         # 从数据库查询所有实例
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             result = await session.execute(select(BotInstanceDB))
             db_instances = result.scalars().all()
 
@@ -208,7 +208,7 @@ async def get_instance(instance_id: str) -> JSONResponse:
 
     try:
         # 从数据库查询实例
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             db_instance = await session.get(BotInstanceDB, instance_id)
 
             if db_instance is None:
@@ -277,7 +277,7 @@ async def start_instance(instance_id: str) -> JSONResponse:
 
     try:
         # 从数据库获取实例信息
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             db_instance = await session.get(BotInstanceDB, instance_id)
 
             if db_instance is None:
@@ -353,7 +353,7 @@ async def stop_instance(instance_id: str) -> JSONResponse:
 
     try:
         # 从数据库获取实例信息
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             db_instance = await session.get(BotInstanceDB, instance_id)
 
             if db_instance is None:
@@ -429,7 +429,7 @@ async def restart_instance(instance_id: str) -> JSONResponse:
 
     try:
         # 从数据库获取实例信息
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             db_instance = await session.get(BotInstanceDB, instance_id)
 
             if db_instance is None:
@@ -506,7 +506,7 @@ async def delete_instance(instance_id: str) -> JSONResponse:
 
     try:
         # 从数据库获取实例信息
-        async with async_session_maker() as session:
+        async with get_session_maker()() as session:
             db_instance = await session.get(BotInstanceDB, instance_id)
 
             if db_instance is None:

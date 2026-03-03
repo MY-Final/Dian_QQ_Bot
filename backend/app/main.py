@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1 import instances
 from app.api.v1 import system
+from app.api.v1 import setup  # 新增：系统初始化路由
 from app.core.config import settings
 from app.database import close_db, init_db
 
@@ -94,6 +95,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 # 注册路由
 app.include_router(instances.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
+app.include_router(setup.router, prefix="/api/v1")  # 系统初始化路由
 
 
 @app.get("/")

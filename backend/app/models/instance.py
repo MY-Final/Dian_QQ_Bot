@@ -86,3 +86,38 @@ class InstanceLogs(BaseModel):
     instance_id: str = Field(..., description="实例 ID")
     logs: str = Field(..., description="容器日志")
     tail: int = Field(default=100, description="获取的日志行数")
+
+
+# ============ 系统初始化相关模型 ============
+
+
+class DatabaseConfig(BaseModel):
+    """数据库配置模型。"""
+
+    host: str = Field(..., description="数据库主机地址")
+    port: int = Field(..., ge=1, le=65535, description="数据库端口")
+    database: str = Field(..., description="数据库名称")
+    username: str = Field(..., description="数据库用户名")
+    password: str = Field(..., description="数据库密码")
+
+
+class AdminConfig(BaseModel):
+    """管理员配置模型。"""
+
+    username: str = Field(..., min_length=3, max_length=50, description="管理员用户名")
+    email: str = Field(..., description="管理员邮箱")
+    password: str = Field(..., min_length=6, description="登录密码")
+
+
+class SystemInitializeRequest(BaseModel):
+    """系统初始化请求模型。"""
+
+    database: DatabaseConfig = Field(..., description="数据库配置")
+    admin: AdminConfig = Field(..., description="管理员配置")
+
+
+class SystemInitializeResponse(BaseModel):
+    """系统初始化响应模型。"""
+
+    initialized: bool = Field(..., description="是否已初始化")
+    message: str = Field(..., description="提示信息")

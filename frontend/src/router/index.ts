@@ -5,6 +5,11 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/setup',
+      name: 'setup',
+      component: () => import('../views/Setup.vue'),
+    },
+    {
       path: '/',
       component: MainLayout,
       children: [
@@ -31,6 +36,56 @@ const router = createRouter({
       ],
     },
   ],
+})
+
+// 路由守卫：检查初始化状态
+router.beforeEach(async (to, from, next) => {
+  // 如果是 setup 页面，直接放行
+  if (to.name === 'setup') {
+    return next()
+  }
+  
+  // 检查是否刚从 setup 完成页面过来
+  const justInitialized = sessionStorage.getItem('just_initialized')
+  if (justInitialized === 'true') {
+    sessionStorage.removeItem('just_initialized')
+    return next()
+  }
+  
+  try {
+    // 从 sessionStorage 获取数据库配置
+    const dbConfigStr = sessionStorage.getItem('db_config')
+    
+    if (!dbConfigStr) {
+      // 没有数据库配置，重定向到 setup
+      return next('/setup')
+    }
+    
+    const dbConfig = JSON.parse(dbConfigStr)
+    
+    // 使用数据库配置检查初始化状态
+    const params = new URLSearchParams({
+      host: dbConfig.host,
+      port: dbConfig.port.toString(),
+      database: dbConfig.database,
+      username: dbConfig.username,
+      password: dbConfig.password,
+    })
+    
+    const response = await fetch('/api/v1/setup/status?' + params)
+    const data = await response.json()
+    
+    if (!data.data?.initialized) {
+      // 未初始化，重定向到 setup 页面
+      return next('/setup')
+    }
+  } catch (error) {
+    console.error('检查初始化状态失败:', error)
+    // 如果检查失败，也重定向到 setup
+    return next('/setup')
+  }
+  
+  next()
 })
 
 export default router
