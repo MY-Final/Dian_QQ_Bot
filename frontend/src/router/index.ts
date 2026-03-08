@@ -61,8 +61,7 @@ router.beforeEach(async (to, _from, next) => {
       // 未初始化，重定向到 setup 页面
       return next('/setup')
     }
-  } catch (error) {
-    console.error('检查初始化状态失败:', error)
+  } catch {
     // 如果检查失败，也重定向到 setup
     return next('/setup')
   }

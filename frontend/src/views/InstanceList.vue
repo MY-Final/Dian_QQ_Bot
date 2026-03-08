@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInstanceStore } from '../stores/instance'
-import { type Instance } from '../api'
+import { type Instance, type InstanceCreate } from '../api'
 import Modal from '../components/ui/Modal.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import Input from '../components/ui/Input.vue'
@@ -43,11 +43,23 @@ const formUid = ref(1000)
 const formGid = ref(1000)
 const formLlPort = ref(3080)
 const formDescription = ref('')
+const searchKeyword = ref('')
+const statusFilter = ref<'all' | 'running' | 'stopped' | 'created' | 'error'>('all')
 
 const frameworkOptions = [
   { value: 'napcat', label: 'NapCat Docker' },
   { value: 'llonebot', label: 'LLOneBot' },
 ]
+
+const filteredInstances = computed(() => {
+  return store.instances.filter((instance) => {
+    const matchKeyword =
+      instance.name.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+      instance.qq_number.includes(searchKeyword.value)
+    const matchStatus = statusFilter.value === 'all' || instance.status === statusFilter.value
+    return matchKeyword && matchStatus
+  })
+})
 
 onMounted(() => {
   store.fetchInstances()
@@ -89,7 +101,7 @@ async function handleCreate() {
   }
   
   // 构建完整的请求体
-  const createData: any = {
+  const createData: InstanceCreate = {
     name: formName.value,
     qq_number: formQqNumber.value,
     protocol: formFramework.value as 'napcat' | 'llonebot' | 'custom',
@@ -207,6 +219,11 @@ async function handleStartInstance(instance: Instance) {
 async function handleRefresh() {
   await store.fetchInstances(true)
   toast.success('列表已刷新')
+}
+
+function clearFilters() {
+  searchKeyword.value = ''
+  statusFilter.value = 'all'
 }
 </script>
 
@@ -369,6 +386,41 @@ async function handleRefresh() {
         </div>
       </div>
 
+      <div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div class="text-xs text-slate-500">总实例数</div>
+          <div class="mt-1 text-xl font-semibold text-slate-900">{{ store.instanceCount }}</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+          <div class="text-xs text-emerald-700">运行中</div>
+          <div class="mt-1 text-xl font-semibold text-emerald-800">{{ store.runningInstances.length }}</div>
+        </div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-3">
+          <div class="text-xs text-rose-700">异常实例</div>
+          <div class="mt-1 text-xl font-semibold text-rose-800">{{ store.errorInstances.length }}</div>
+        </div>
+      </div>
+
+      <div class="mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+        <input
+          v-model="searchKeyword"
+          type="text"
+          placeholder="按实例名或 QQ 号搜索..."
+          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+        />
+        <select
+          v-model="statusFilter"
+          class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+        >
+          <option value="all">全部状态</option>
+          <option value="running">运行中</option>
+          <option value="stopped">已停止</option>
+          <option value="created">已创建</option>
+          <option value="error">异常</option>
+        </select>
+        <button class="text-sm text-slate-500 hover:text-slate-700" @click="clearFilters">清空筛选</button>
+      </div>
+
       <!-- Table -->
       <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table class="w-full text-sm text-left">
@@ -392,16 +444,16 @@ async function handleRefresh() {
                 </div>
               </td>
             </tr>
-            <tr v-else-if="store.instances.length === 0" class="hover:bg-gray-50">
+            <tr v-else-if="filteredInstances.length === 0" class="hover:bg-gray-50">
               <td colspan="4" class="px-6 py-8 text-center text-gray-400">
                 <div class="text-2xl mb-2">🐱</div>
-                <div>暂无实例</div>
-                <div class="text-xs mt-1">点击"创建实例"开始</div>
+                <div>{{ store.instances.length === 0 ? '暂无实例' : '没有匹配筛选条件的实例' }}</div>
+                <div class="text-xs mt-1">{{ store.instances.length === 0 ? '点击"创建实例"开始' : '试试清空筛选条件' }}</div>
               </td>
             </tr>
             <tr
               v-else
-              v-for="instance in store.instances"
+              v-for="instance in filteredInstances"
               :key="instance.id"
               class="hover:bg-gray-50 cursor-pointer transition-colors"
               @click="goToDetail(instance.id)"
@@ -487,7 +539,7 @@ async function handleRefresh() {
       <!-- Footer info -->
       <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
         <div>
-          共 <span class="font-medium text-gray-900">{{ store.instances.length }}</span> 个实例
+          共 <span class="font-medium text-gray-900">{{ filteredInstances.length }}</span> / {{ store.instances.length }} 个实例
           <span v-if="store.runningInstances.length > 0" class="ml-2">
             · <span class="text-green-600 font-medium">{{ store.runningInstances.length }}</span> 个运行中
           </span>

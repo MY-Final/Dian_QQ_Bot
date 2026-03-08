@@ -36,8 +36,8 @@ onMounted(async () => {
     if (data.data?.initialized) {
       router.push('/')
     }
-  } catch (error) {
-    console.error('检查初始化状态失败:', error)
+  } catch {
+    showToast('初始化状态检查失败，请稍后重试', true)
   }
 })
 

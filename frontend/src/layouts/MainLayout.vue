@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 
 const route = useRoute()
 const collapsed = ref(false)
+const mobile_menu_open = ref(false)
 
 const menuItems = [
   { path: '/', name: '实例管理', icon: 'grid' },
@@ -14,23 +15,41 @@ const menuItems = [
 function toggleSidebar() {
   collapsed.value = !collapsed.value
 }
+
+function toggleMobileMenu() {
+  mobile_menu_open.value = !mobile_menu_open.value
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    mobile_menu_open.value = false
+  },
+)
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50">
+  <div class="flex h-screen bg-slate-50">
+    <div
+      v-if="mobile_menu_open"
+      class="fixed inset-0 z-30 bg-slate-900/35 backdrop-blur-[1px] lg:hidden"
+      @click="mobile_menu_open = false"
+    ></div>
+
     <!-- Sidebar -->
     <aside
       :class="[
-        'bg-white border-r border-gray-200 flex flex-col shrink-0 transition-all duration-300',
-        collapsed ? 'w-16' : 'w-56'
+        'fixed inset-y-0 left-0 z-40 bg-white/95 border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 lg:static lg:translate-x-0',
+        collapsed ? 'w-16' : 'w-56',
+        mobile_menu_open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
       ]"
     >
       <!-- Logo -->
-      <div class="h-16 flex items-center px-4 border-b border-gray-200">
+      <div class="h-16 flex items-center px-4 border-b border-slate-200">
         <div class="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center text-white font-bold">
           D
         </div>
-        <span v-if="!collapsed" class="ml-3 font-semibold text-gray-800">Dian Bot</span>
+        <span v-if="!collapsed" class="ml-3 font-semibold text-slate-800">Dian Bot</span>
       </div>
 
       <!-- Nav -->
@@ -43,7 +62,7 @@ function toggleSidebar() {
             'flex items-center px-3 py-2.5 rounded-lg text-sm font-medium mb-1 transition-colors',
             route.path === item.path
               ? 'bg-pink-50 text-pink-600'
-              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           ]"
         >
           <svg v-if="item.icon === 'grid'" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
@@ -54,13 +73,13 @@ function toggleSidebar() {
       </nav>
 
       <!-- Footer -->
-      <div class="p-3 border-t border-gray-200">
-        <div v-if="!collapsed" class="text-xs text-gray-400 mb-2 text-center">
+      <div class="p-3 border-t border-slate-200">
+        <div v-if="!collapsed" class="text-xs text-slate-400 mb-2 text-center">
           点点 🐱
         </div>
         <button
           @click="toggleSidebar"
-          class="w-full flex items-center justify-center py-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+          class="w-full flex items-center justify-center py-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
         >
           <svg v-if="collapsed" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -69,7 +88,16 @@ function toggleSidebar() {
     </aside>
 
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div class="relative flex-1 flex flex-col min-w-0 overflow-hidden">
+      <button
+        class="fixed bottom-5 right-5 z-20 h-11 w-11 rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg lg:hidden"
+        @click="toggleMobileMenu"
+        aria-label="切换菜单"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
       <router-view />
     </div>
   </div>
