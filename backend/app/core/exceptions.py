@@ -138,3 +138,27 @@ class AuthUserNotFoundError(AuthError):
 
     def __init__(self) -> None:
         super().__init__("用户不存在")
+
+
+class ImageServiceError(BotError):
+    """镜像服务异常基类。"""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class ImagePullError(ImageServiceError):
+    """镜像拉取失败异常。"""
+
+    def __init__(self, image_ref: str, detail: str) -> None:
+        super().__init__(f"拉取镜像失败: {image_ref} ({detail})")
+        self.image_ref = image_ref
+        self.detail = detail
+
+
+class ImageNotFoundError(ImageServiceError):
+    """镜像未找到异常。"""
+
+    def __init__(self, image_ref: str) -> None:
+        super().__init__(f"镜像未找到: {image_ref}")
+        self.image_ref = image_ref

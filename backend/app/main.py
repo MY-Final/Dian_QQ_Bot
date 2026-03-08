@@ -14,6 +14,7 @@ from app.api.v1 import instances
 from app.api.v1 import system
 from app.api.v1 import setup  # 新增：系统初始化路由
 from app.api.v1 import auth  # 新增：认证路由
+from app.api.v1 import images
 from app.core.config import settings
 from app.database import close_db, init_db
 
@@ -121,6 +122,7 @@ app.include_router(instances.router, prefix="/api/v1")
 app.include_router(system.router, prefix="/api/v1")
 app.include_router(setup.router, prefix="/api/v1")  # 系统初始化路由
 app.include_router(auth.router, prefix="/api/v1")  # 认证路由
+app.include_router(images.router, prefix="/api/v1")  # 镜像管理路由
 
 
 @app.get("/")
