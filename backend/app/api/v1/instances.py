@@ -13,9 +13,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
+from app.api.v1.dependencies import get_current_user, require_admin_user
 from app.core.exceptions import BotError, BotNotFoundError
 from app.managers.napcat import NapCatManager
 from app.models.instance import InstanceCreate
+from app.models.user import User
 from app.services.instance_service import InstanceService
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,7 @@ def error_response(message: str, code: int = 400) -> dict[str, Any]:
 async def create_instance(
     data: InstanceCreate,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(require_admin_user),
 ) -> JSONResponse:
     """创建新的 NapCat Bot 实例。
 
@@ -103,6 +106,7 @@ async def create_instance(
 )
 async def list_instances(
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """列出所有 Bot 实例。
 
@@ -136,6 +140,7 @@ async def list_instances(
 async def get_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """获取 Bot 实例详情。
 
@@ -174,6 +179,7 @@ async def get_instance(
 async def start_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(require_admin_user),
 ) -> JSONResponse:
     """启动 Bot 实例。
 
@@ -212,6 +218,7 @@ async def start_instance(
 async def stop_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(require_admin_user),
 ) -> JSONResponse:
     """停止 Bot 实例。
 
@@ -250,6 +257,7 @@ async def stop_instance(
 async def restart_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(require_admin_user),
 ) -> JSONResponse:
     """重启 Bot 实例。
 
@@ -288,6 +296,7 @@ async def restart_instance(
 async def delete_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(require_admin_user),
 ) -> JSONResponse:
     """删除 Bot 实例。
 
@@ -330,6 +339,7 @@ async def get_instance_logs(
     tail: int = 100,
     cursor: int = 0,
     service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """获取 Bot 实例日志。
 

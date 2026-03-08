@@ -64,7 +64,7 @@ async function handleNext() {
 
 // 进入控制台
 function enterDashboard() {
-  router.push('/')
+  router.push('/login')
 }
 </script>
 

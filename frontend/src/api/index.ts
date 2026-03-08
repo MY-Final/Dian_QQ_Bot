@@ -1,5 +1,8 @@
 import axios, { AxiosError, type AxiosResponse } from 'axios'
 
+const ACCESS_TOKEN_KEY = 'dian_access_token'
+const CURRENT_USER_KEY = 'dian_current_user'
+
 // 统一响应格式
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -12,6 +15,47 @@ export interface ApiError {
   success: false
   message: string
   code: number
+}
+
+export interface AuthUser {
+  id: string
+  username: string
+  email: string
+  role: string
+}
+
+export interface LoginPayload {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  user: AuthUser
+}
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(ACCESS_TOKEN_KEY)
+}
+
+export function setAuthSession(loginPayload: LoginPayload): void {
+  localStorage.setItem(ACCESS_TOKEN_KEY, loginPayload.access_token)
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(loginPayload.user))
+}
+
+export function clearAuthSession(): void {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(CURRENT_USER_KEY)
+}
+
+export function getCurrentUserFromStorage(): AuthUser | null {
+  const rawUser = localStorage.getItem(CURRENT_USER_KEY)
+  if (!rawUser) {
+    return null
+  }
+
+  try {
+    return JSON.parse(rawUser) as AuthUser
+  } catch {
+    return null
+  }
 }
 
 export function getErrorMessage(error: unknown, fallback: string): string {
@@ -40,6 +84,14 @@ const api = axios.create({
   },
 })
 
+api.interceptors.request.use((config) => {
+  const token = getAccessToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 // 响应拦截器 - 统一处理响应格式
 api.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
@@ -49,6 +101,9 @@ api.interceptors.response.use(
   (error: unknown) => {
     // 统一错误处理
     const axiosError = error as AxiosError<{ message?: string }>
+    if (axiosError.response?.status === 401) {
+      clearAuthSession()
+    }
     const errorResponse: ApiError = {
       success: false,
       message: getErrorMessage(error, '网络错误'),
@@ -195,4 +250,16 @@ export const instanceApi = {
       `/instances/${id}/logs`,
       { params: { tail, cursor } }
     ),
+}
+
+/**
+ * 认证 API
+ */
+export const authApi = {
+  /** 用户登录 */
+  login: (username: string, password: string) =>
+    api.post<ApiResponse<LoginPayload>>('/auth/login', { username, password }),
+
+  /** 获取当前用户 */
+  me: () => api.get<ApiResponse<AuthUser>>('/auth/me'),
 }

@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+import { authApi, clearAuthSession, getAccessToken } from '@/api'
 import MainLayout from '../layouts/MainLayout.vue'
 
 const router = createRouter({
@@ -8,6 +10,11 @@ const router = createRouter({
       path: '/setup',
       name: 'setup',
       component: () => import('../views/Setup.vue'),
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/Login.vue'),
     },
     {
       path: '/',
@@ -40,8 +47,26 @@ const router = createRouter({
 
 // 路由守卫：检查初始化状态
 router.beforeEach(async (to, _from, next) => {
-  // 如果是 setup 页面，直接放行
-  if (to.name === 'setup') {
+  // setup 和 login 页面优先处理
+  if (to.name === 'setup' || to.name === 'login') {
+    if (to.name === 'setup') {
+      return next()
+    }
+
+    try {
+      const response = await fetch('/api/v1/setup/status')
+      const data = await response.json()
+      if (!data.data?.initialized) {
+        return next('/setup')
+      }
+    } catch {
+      return next('/setup')
+    }
+
+    if (getAccessToken()) {
+      return next('/')
+    }
+
     return next()
   }
   
@@ -64,6 +89,18 @@ router.beforeEach(async (to, _from, next) => {
   } catch {
     // 如果检查失败，也重定向到 setup
     return next('/setup')
+  }
+
+  const token = getAccessToken()
+  if (!token) {
+    return next('/login')
+  }
+
+  try {
+    await authApi.me()
+  } catch {
+    clearAuthSession()
+    return next('/login')
   }
   
   next()

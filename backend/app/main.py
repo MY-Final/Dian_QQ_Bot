@@ -6,7 +6,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -90,6 +90,29 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     return JSONResponse(
         status_code=500,
         content={"detail": "服务器内部错误，请稍后重试。点点会陪你排查的～"},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """HTTP 异常统一处理器。
+
+    Args:
+        request: FastAPI 请求对象
+        exc: HTTP 异常对象
+
+    Returns:
+        JSONResponse: 统一错误响应
+    """
+    detail_text = str(exc.detail) if exc.detail else "请求处理失败"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": detail_text,
+            "code": exc.status_code,
+            "data": None,
+        },
     )
 
 

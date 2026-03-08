@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+
+import { clearAuthSession } from '@/api'
 
 const route = useRoute()
+const router = useRouter()
 const collapsed = ref(false)
 const mobile_menu_open = ref(false)
 
@@ -18,6 +21,11 @@ function toggleSidebar() {
 
 function toggleMobileMenu() {
   mobile_menu_open.value = !mobile_menu_open.value
+}
+
+async function logout(): Promise<void> {
+  clearAuthSession()
+  await router.replace('/login')
 }
 
 watch(
@@ -74,6 +82,13 @@ watch(
 
       <!-- Footer -->
       <div class="p-3 border-t border-slate-200">
+        <button
+          @click="logout"
+          class="mb-2 w-full flex items-center justify-center py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M13 5V3a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2"/></svg>
+          <span v-if="!collapsed" class="ml-2 text-sm">退出登录</span>
+        </button>
         <div v-if="!collapsed" class="text-xs text-slate-400 mb-2 text-center">
           点点 🐱
         </div>
