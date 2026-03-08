@@ -23,7 +23,7 @@ x-api-env: &api-env
   ACCESS_TOKEN_EXPIRE_HOURS: ${ACCESS_TOKEN_EXPIRE_HOURS:-24}
   REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
   HOST: 0.0.0.0
-  PORT: 8000
+  PORT: 18080
   # Docker 配置
   CONTAINER_PREFIX: dian
   NAPCAT_IMAGE: mlikiowa/napcat-docker:latest
@@ -76,14 +76,14 @@ services:
       # Linux: 挂载 Docker Socket
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-18080}:18080"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - dian_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:18080/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -98,13 +98,13 @@ services:
     container_name: dian-qq-bot-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_PORT:-16788}:16788"
     depends_on:
       - api
     networks:
       - dian_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:16788/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
