@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import Toast from '@/components/ui/Toast.vue'
 import { useSetupWizard } from '@/composables/useSetupWizard'
+import { useToast } from '@/composables/useToast'
 import StepDatabase from '@/components/setup/StepDatabase.vue'
 import StepInitDb from '@/components/setup/StepInitDb.vue'
 import StepAdmin from '@/components/setup/StepAdmin.vue'
 
 const router = useRouter()
+const toast = useToast()
 const {
   currentStep,
   dbMode,
@@ -43,15 +46,11 @@ onMounted(async () => {
 
 // 显示 Toast
 function showToast(message: string, isError: boolean) {
-  const toast = document.getElementById('toast')
-  if (!toast) return
-  
-  toast.innerText = message
-  toast.className = `fixed top-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl text-[12px] font-bold shadow-2xl transition-all duration-300 ${isError ? 'bg-rose-500' : 'bg-slate-900'} text-white opacity-100 translate-y-0 z-[200]`
-  
-  setTimeout(() => {
-    toast.className = toast.className.replace('opacity-100', 'opacity-0').replace('translate-y-0', 'translate-y-[-20px]')
-  }, 3000)
+  if (isError) {
+    toast.error(message)
+    return
+  }
+  toast.success(message)
 }
 
 // 处理下一步
@@ -282,10 +281,7 @@ function enterDashboard() {
       </p>
     </div>
 
-    <!-- 通知 Toast -->
-    <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl text-[12px] font-bold shadow-2xl transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px] z-[200]">
-      提示信息
-    </div>
+    <Toast />
   </div>
 </template>
 

@@ -3,6 +3,31 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { authApi, clearAuthSession, getAccessToken } from '@/api'
 import MainLayout from '../layouts/MainLayout.vue'
 
+const SETUP_STATUS_CACHE_MS = 30_000
+
+type SetupStatusCache = {
+  initialized: boolean
+  timestamp: number
+}
+
+let setupStatusCache: SetupStatusCache | null = null
+
+async function getSetupInitializedStatus(): Promise<boolean> {
+  const now = Date.now()
+  if (setupStatusCache && now - setupStatusCache.timestamp < SETUP_STATUS_CACHE_MS) {
+    return setupStatusCache.initialized
+  }
+
+  const response = await fetch('/api/v1/setup/status')
+  const data = await response.json()
+  const initialized = Boolean(data.data?.initialized)
+  setupStatusCache = {
+    initialized,
+    timestamp: now,
+  }
+  return initialized
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -54,9 +79,8 @@ router.beforeEach(async (to, _from, next) => {
     }
 
     try {
-      const response = await fetch('/api/v1/setup/status')
-      const data = await response.json()
-      if (!data.data?.initialized) {
+      const initialized = await getSetupInitializedStatus()
+      if (!initialized) {
         return next('/setup')
       }
     } catch {
@@ -78,11 +102,9 @@ router.beforeEach(async (to, _from, next) => {
   }
   
   try {
-    // 直接调用接口，后端会自动使用已保存的配置
-    const response = await fetch('/api/v1/setup/status')
-    const data = await response.json()
-    
-    if (!data.data?.initialized) {
+    const initialized = await getSetupInitializedStatus()
+
+    if (!initialized) {
       // 未初始化，重定向到 setup 页面
       return next('/setup')
     }
