@@ -1,0 +1,280 @@
+"""Bot 实例业务服务模块。
+
+封装实例管理的核心业务逻辑，路由层只负责参数接收和响应转换。
+"""
+
+import logging
+from datetime import datetime
+
+from sqlalchemy import select
+
+from app.core.exceptions import BotError, BotNotFoundError
+from app.database import get_session_maker
+from app.managers.napcat import NapCatManager
+from app.models.db_models import BotInstanceDB
+from app.models.instance import InstanceCreate, InstanceStatus
+
+logger = logging.getLogger(__name__)
+
+
+class InstanceService:
+    """Bot 实例业务服务。"""
+
+    def __init__(self, manager: NapCatManager) -> None:
+        """初始化服务。
+
+        Args:
+            manager: NapCat 管理器实例
+        """
+        self._manager = manager
+
+    async def create_instance(self, data: InstanceCreate) -> dict[str, object]:
+        """创建实例。
+
+        Args:
+            data: 实例创建参数
+
+        Returns:
+            dict[str, object]: 创建后的实例数据
+
+        Raises:
+            BotError: 创建失败时抛出
+        """
+        instance = await self._manager.create(
+            name=data.name,
+            qq_number=data.qq_number,
+            protocol=data.protocol.value,
+            description=data.description,
+            port_web_ui=data.port_web_ui,
+            port_http=data.port_http,
+            port_ws=data.port_ws,
+            napcat_uid=data.napcat_uid,
+            napcat_gid=data.napcat_gid,
+        )
+        return self._serialize_instance_model(instance.model_dump())
+
+    async def list_instances(self) -> list[dict[str, object]]:
+        """获取实例列表。
+
+        Returns:
+            list[dict[str, object]]: 实例列表
+
+        Raises:
+            BotError: 查询失败时抛出
+        """
+        try:
+            async with get_session_maker()() as session:
+                result = await session.execute(select(BotInstanceDB))
+                db_instances = result.scalars().all()
+                return [self._serialize_db_instance(item) for item in db_instances]
+        except Exception as exc:
+            logger.error("查询实例列表失败", exc_info=True)
+            raise BotError("获取实例列表失败，请稍后重试") from exc
+
+    async def get_instance(self, instance_id: str) -> dict[str, object]:
+        """获取实例详情。
+
+        Args:
+            instance_id: 实例 ID
+
+        Returns:
+            dict[str, object]: 实例详情
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 查询失败时抛出
+        """
+        try:
+            async with get_session_maker()() as session:
+                db_instance = await session.get(BotInstanceDB, instance_id)
+                if db_instance is None:
+                    raise BotNotFoundError(instance_id)
+
+                try:
+                    runtime_status = await self._manager.get_status(instance_id)
+                    status_value = runtime_status.value
+                except BotError:
+                    status_value = db_instance.status
+
+                instance_data = self._serialize_db_instance(db_instance)
+                instance_data["status"] = status_value
+                return instance_data
+        except BotNotFoundError:
+            raise
+        except Exception as exc:
+            logger.error("查询实例详情失败: instance_id=%s", instance_id, exc_info=True)
+            raise BotError("获取实例详情失败，请稍后重试") from exc
+
+    async def start_instance(self, instance_id: str) -> dict[str, object]:
+        """启动实例。
+
+        Args:
+            instance_id: 实例 ID
+
+        Returns:
+            dict[str, object]: 启动后的实例数据
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 启动失败时抛出
+        """
+        await self._manager.start(instance_id)
+        return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
+
+    async def stop_instance(self, instance_id: str) -> dict[str, object]:
+        """停止实例。
+
+        Args:
+            instance_id: 实例 ID
+
+        Returns:
+            dict[str, object]: 停止后的实例数据
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 停止失败时抛出
+        """
+        await self._manager.stop(instance_id)
+        return await self._update_status_and_get(instance_id, InstanceStatus.STOPPED)
+
+    async def restart_instance(self, instance_id: str) -> dict[str, object]:
+        """重启实例。
+
+        Args:
+            instance_id: 实例 ID
+
+        Returns:
+            dict[str, object]: 重启后的实例数据
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 重启失败时抛出
+        """
+        await self._manager.stop(instance_id)
+        await self._manager.start(instance_id)
+        return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
+
+    async def delete_instance(self, instance_id: str) -> None:
+        """删除实例。
+
+        Args:
+            instance_id: 实例 ID
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 删除失败时抛出
+        """
+        try:
+            async with get_session_maker()() as session:
+                db_instance = await session.get(BotInstanceDB, instance_id)
+                if db_instance is None:
+                    raise BotNotFoundError(instance_id)
+
+                await self._manager.delete(instance_id)
+                await session.delete(db_instance)
+                await session.commit()
+        except BotNotFoundError:
+            raise
+        except BotError:
+            raise
+        except Exception as exc:
+            logger.error("删除实例失败: instance_id=%s", instance_id, exc_info=True)
+            raise BotError("删除实例失败，请稍后重试") from exc
+
+    async def get_instance_logs(self, instance_id: str, tail: int) -> str:
+        """获取实例日志。
+
+        Args:
+            instance_id: 实例 ID
+            tail: 日志行数
+
+        Returns:
+            str: 日志文本
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 日志获取失败时抛出
+        """
+        return await self._manager.get_logs(instance_id, tail)
+
+    async def _update_status_and_get(
+        self,
+        instance_id: str,
+        instance_status: InstanceStatus,
+    ) -> dict[str, object]:
+        """更新实例状态并返回实例数据。
+
+        Args:
+            instance_id: 实例 ID
+            instance_status: 实例状态
+
+        Returns:
+            dict[str, object]: 实例数据
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 更新失败时抛出
+        """
+        try:
+            async with get_session_maker()() as session:
+                db_instance = await session.get(BotInstanceDB, instance_id)
+                if db_instance is None:
+                    raise BotNotFoundError(instance_id)
+
+                db_instance.status = instance_status.value
+                db_instance.updated_at = datetime.utcnow()
+                await session.commit()
+                await session.refresh(db_instance)
+
+                return self._serialize_db_instance(db_instance)
+        except BotNotFoundError:
+            raise
+        except Exception as exc:
+            logger.error("更新实例状态失败: instance_id=%s", instance_id, exc_info=True)
+            raise BotError("实例状态更新失败，请稍后重试") from exc
+
+    @staticmethod
+    def _serialize_db_instance(db_instance: BotInstanceDB) -> dict[str, object]:
+        """序列化数据库实例。
+
+        Args:
+            db_instance: 数据库实例
+
+        Returns:
+            dict[str, object]: 可响应的数据
+        """
+        return {
+            "id": db_instance.id,
+            "name": db_instance.name,
+            "qq_number": db_instance.qq_number,
+            "protocol": db_instance.protocol,
+            "status": db_instance.status,
+            "container_name": db_instance.container_name,
+            "port": db_instance.port,
+            "port_web_ui": db_instance.port_web_ui,
+            "port_ws": db_instance.port_ws,
+            "volume_path": db_instance.volume_path,
+            "description": db_instance.description,
+            "created_at": db_instance.created_at.isoformat() if db_instance.created_at else None,
+            "updated_at": db_instance.updated_at.isoformat() if db_instance.updated_at else None,
+        }
+
+    @staticmethod
+    def _serialize_instance_model(data: dict[str, object]) -> dict[str, object]:
+        """序列化 Pydantic 实例模型数据。
+
+        Args:
+            data: model_dump 后的数据
+
+        Returns:
+            dict[str, object]: 可响应的数据
+        """
+        serialized: dict[str, object] = {}
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                serialized[key] = value.isoformat()
+            elif hasattr(value, "value"):
+                serialized[key] = value.value
+            else:
+                serialized[key] = value
+        return serialized
