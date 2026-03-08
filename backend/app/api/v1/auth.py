@@ -8,24 +8,33 @@
 """
 
 import logging
-import uuid
-from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.exceptions import (
+    AuthUserNotFoundError,
+    InvalidCredentialsError,
+    TokenValidationError,
+    UserAlreadyExistsError,
+)
 from app.database import get_db
-from app.models.user import User
-from app.utils.jwt import create_access_token, create_refresh_token, verify_token
-from app.utils.security import hash_password, verify_password
+from app.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["用户认证"])
+
+
+def get_auth_service() -> AuthService:
+    """获取认证服务实例。
+
+    Returns:
+        AuthService: 认证业务服务
+    """
+    return AuthService()
 
 
 def success_response(data: dict[str, object] | None = None, message: str = "操作成功") -> dict[str, object]:
@@ -79,6 +88,7 @@ class RefreshTokenRequest(BaseModel):
 async def login(
     request: LoginRequest,
     db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> JSONResponse:
     """用户登录接口。
 
@@ -95,59 +105,21 @@ async def login(
     logger.info("用户登录尝试：username=%s", request.username)
 
     try:
-        result = await db.execute(select(User).where(User.username == request.username))
-        user = result.scalar_one_or_none()
-
-        if not user:
-            logger.warning("用户不存在：%s", request.username)
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("用户名或密码错误", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        if not verify_password(request.password, user.password_hash):
-            logger.warning("密码错误：username=%s", request.username)
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("用户名或密码错误", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        user.last_login = datetime.utcnow()
-        await db.commit()
-        await db.refresh(user)
-
-        access_token = create_access_token(
-            data={
-                "sub": str(user.id),
-                "username": user.username,
-                "role": user.role,
-            },
-            expires_delta=timedelta(hours=settings.access_token_expire_hours),
-        )
-
-        refresh_token = create_refresh_token(
-            data={"sub": str(user.id)},
-            expires_delta=timedelta(days=settings.refresh_token_expire_days),
-        )
-
-        logger.info("用户登录成功：username=%s, role=%s", request.username, user.role)
+        login_payload = await service.login(db, request.username, request.password)
+        logger.info("用户登录成功：username=%s", request.username)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=success_response(
-                data={
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "token_type": "bearer",
-                    "user": {
-                        "id": str(user.id),
-                        "username": user.username,
-                        "email": user.email,
-                        "role": user.role,
-                    },
-                },
+                data=login_payload,
                 message="登录成功",
             ),
+        )
+    except InvalidCredentialsError as exc:
+        logger.warning("登录失败：username=%s", request.username)
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content=error_response(exc.message, status.HTTP_401_UNAUTHORIZED),
         )
 
     except Exception:
@@ -163,6 +135,7 @@ async def login(
 async def register(
     request: RegisterRequest,
     db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> JSONResponse:
     """用户注册接口。
 
@@ -179,50 +152,26 @@ async def register(
     logger.info("用户注册尝试：username=%s, email=%s", request.username, request.email)
 
     try:
-        existing_user_result = await db.execute(select(User).where(User.username == request.username))
-        existing_user = existing_user_result.scalar_one_or_none()
-        if existing_user:
-            logger.warning("用户名已存在：%s", request.username)
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content=error_response("用户名已存在", status.HTTP_400_BAD_REQUEST),
-            )
-
-        existing_email_result = await db.execute(select(User).where(User.email == str(request.email)))
-        existing_email = existing_email_result.scalar_one_or_none()
-        if existing_email:
-            logger.warning("邮箱已存在：%s", request.email)
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content=error_response("邮箱已被使用", status.HTTP_400_BAD_REQUEST),
-            )
-
-        user = User(
-            id=uuid.uuid4(),
+        registered_user = await service.register(
+            db=db,
             username=request.username,
             email=str(request.email),
-            password_hash=hash_password(request.password),
-            role="user",
-            created_at=datetime.utcnow(),
+            password=request.password,
         )
-
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
 
         logger.info("用户注册成功：username=%s", request.username)
 
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content=success_response(
-                data={
-                    "id": str(user.id),
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role,
-                },
+                data=registered_user,
                 message="注册成功",
             ),
+        )
+    except UserAlreadyExistsError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=error_response(exc.message, status.HTTP_400_BAD_REQUEST),
         )
 
     except Exception:
@@ -235,7 +184,10 @@ async def register(
 
 
 @router.post("/refresh", summary="刷新 Token")
-async def refresh_token(request: RefreshTokenRequest) -> JSONResponse:
+async def refresh_token(
+    request: RefreshTokenRequest,
+    service: AuthService = Depends(get_auth_service),
+) -> JSONResponse:
     """刷新访问令牌。
 
     Args:
@@ -248,34 +200,19 @@ async def refresh_token(request: RefreshTokenRequest) -> JSONResponse:
         RuntimeError: Token 处理失败时抛出
     """
     try:
-        payload = verify_token(request.refresh_token, token_type="refresh")
-        if not payload:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("refresh_token 无效或已过期", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        user_id = payload.get("sub")
-        if not isinstance(user_id, str):
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("refresh_token 无效或已过期", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        access_token = create_access_token(
-            data={"sub": user_id},
-            expires_delta=timedelta(hours=settings.access_token_expire_hours),
-        )
+        access_token_data = service.refresh_access_token(request.refresh_token)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=success_response(
-                data={
-                    "access_token": access_token,
-                    "token_type": "bearer",
-                },
+                data=access_token_data,
                 message="Token 刷新成功",
             ),
+        )
+    except TokenValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content=error_response(exc.message, status.HTTP_401_UNAUTHORIZED),
         )
 
     except Exception:
@@ -290,6 +227,7 @@ async def refresh_token(request: RefreshTokenRequest) -> JSONResponse:
 async def get_current_user(
     authorization: str | None = Header(default=None, alias="Authorization"),
     db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ) -> JSONResponse:
     """获取当前登录用户信息。
 
@@ -303,68 +241,25 @@ async def get_current_user(
     Raises:
         RuntimeError: 数据库查询失败时抛出
     """
-    if authorization is None:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content=error_response("缺少认证头", status.HTTP_401_UNAUTHORIZED),
-        )
-
-    auth_parts = authorization.strip().split(" ", 1)
-    if len(auth_parts) != 2 or auth_parts[0].lower() != "bearer":
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content=error_response("无效的认证头格式", status.HTTP_401_UNAUTHORIZED),
-        )
-
-    token = auth_parts[1].strip()
-    if not token:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content=error_response("Token 不能为空", status.HTTP_401_UNAUTHORIZED),
-        )
-
     try:
-        payload = verify_token(token, token_type="access")
-        if not payload:
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("Token 无效或已过期", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        user_id = payload.get("sub")
-        if not isinstance(user_id, str):
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content=error_response("Token 无效或已过期", status.HTTP_401_UNAUTHORIZED),
-            )
-
-        user_uuid = uuid.UUID(user_id)
-        result = await db.execute(select(User).where(User.id == user_uuid))
-        user = result.scalar_one_or_none()
-        if not user:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content=error_response("用户不存在", status.HTTP_404_NOT_FOUND),
-            )
+        user_profile = await service.get_current_user_profile(db, authorization)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=success_response(
-                data={
-                    "id": str(user.id),
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role,
-                    "last_login": user.last_login.isoformat() if user.last_login else None,
-                },
+                data=user_profile,
                 message="获取用户信息成功",
             ),
         )
-
-    except ValueError:
+    except TokenValidationError as exc:
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            content=error_response("Token 无效或已过期", status.HTTP_401_UNAUTHORIZED),
+            content=error_response(exc.message, status.HTTP_401_UNAUTHORIZED),
+        )
+    except AuthUserNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_response(exc.message, status.HTTP_404_NOT_FOUND),
         )
     except Exception:
         logger.error("获取用户信息失败", exc_info=True)

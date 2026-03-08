@@ -103,3 +103,38 @@ class AdminCreationError(SetupError):
 
     def __init__(self, message: str = "创建管理员失败，请稍后重试") -> None:
         super().__init__(message)
+
+
+class AuthError(BotError):
+    """认证流程异常基类。"""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class InvalidCredentialsError(AuthError):
+    """用户凭证无效异常。"""
+
+    def __init__(self) -> None:
+        super().__init__("用户名或密码错误")
+
+
+class UserAlreadyExistsError(AuthError):
+    """用户已存在异常。"""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class TokenValidationError(AuthError):
+    """Token 校验失败异常。"""
+
+    def __init__(self) -> None:
+        super().__init__("Token 无效或已过期")
+
+
+class AuthUserNotFoundError(AuthError):
+    """认证用户不存在异常。"""
+
+    def __init__(self) -> None:
+        super().__init__("用户不存在")
