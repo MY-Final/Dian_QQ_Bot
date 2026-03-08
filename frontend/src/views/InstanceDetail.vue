@@ -6,11 +6,13 @@ import { useInstanceStore } from '../stores/instance'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import Toast from '../components/ui/Toast.vue'
 import { useToast } from '@/composables/useToast'
+import { useUiPreferences } from '@/composables/useUiPreferences'
 
 const route = useRoute()
 const router = useRouter()
 const store = useInstanceStore()
 const toast = useToast()
+const { preferences } = useUiPreferences()
 
 const instance = ref<Instance | null>(null)
 const logs = ref('')
@@ -24,7 +26,7 @@ const isRealtime = ref(false)
 const realtimeInterval = ref<number | null>(null)
 const logsContainer = ref<HTMLElement | null>(null)
 const autoScroll = ref(true)
-const logLines = ref(50)
+const logLines = ref(preferences.value.defaultLogLines)
 const logCursor = ref(0)
 
 const instanceId = computed(() => route.params.id as string)
@@ -36,6 +38,8 @@ const confirmModal = ref({
   message: '',
   type: 'warning' as 'danger' | 'warning' | 'info',
   confirmText: '确认',
+  requireText: '',
+  requireTextPlaceholder: '请输入实例名称',
   action: null as (() => Promise<void>) | null,
   loading: false,
 })
@@ -124,8 +128,8 @@ function toggleRealtime(enable: boolean) {
       if (!logsLoading.value) {
         fetchLogs()
       }
-    }, 3000)
-    toast.success('已开启实时日志（每 3 秒刷新）')
+    }, preferences.value.logRefreshIntervalMs)
+    toast.success(`已开启实时日志（每 ${Math.round(preferences.value.logRefreshIntervalMs / 1000)} 秒刷新）`)
   } else {
     stopRealtime()
   }
@@ -239,6 +243,7 @@ async function deleteInstance() {
     message: `确定要删除实例 "${instance.value.name}" 吗？此操作不可恢复，所有数据将被永久删除。`,
     type: 'danger',
     confirmText: '删除',
+    requireText: preferences.value.requireDeleteConfirmText ? instance.value.name : '',
     action: async () => {
       try {
         const response = await instanceApi.delete(instanceId.value)
@@ -261,6 +266,7 @@ function showConfirm(options: {
   message: string
   type?: 'danger' | 'warning' | 'info'
   confirmText?: string
+  requireText?: string
   action: () => Promise<void>
 }) {
   confirmModal.value = {
@@ -269,6 +275,8 @@ function showConfirm(options: {
     message: options.message,
     type: options.type || 'warning',
     confirmText: options.confirmText || '确认',
+    requireText: options.requireText || '',
+    requireTextPlaceholder: options.requireText ? '请输入实例名称后确认' : '请输入确认文本',
     action: options.action,
     loading: false,
   }
@@ -278,9 +286,10 @@ function closeConfirm() {
   confirmModal.value.show = false
   confirmModal.value.action = null
   confirmModal.value.loading = false
+  confirmModal.value.requireText = ''
 }
 
-async function handleConfirm() {
+async function handleConfirm(_confirmText: string) {
   if (confirmModal.value.action) {
     confirmModal.value.loading = true
     try {
@@ -772,6 +781,8 @@ function clearLogs() {
     :message="confirmModal.message"
     :type="confirmModal.type"
     :confirm-text="confirmModal.confirmText"
+    :require-text="confirmModal.requireText"
+    :require-text-placeholder="confirmModal.requireTextPlaceholder"
     :loading="confirmModal.loading"
     @confirm="handleConfirm"
     @cancel="closeConfirm"

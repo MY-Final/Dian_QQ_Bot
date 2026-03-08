@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+
 interface ConfirmModalProps {
   show: boolean
   title: string
@@ -7,19 +9,41 @@ interface ConfirmModalProps {
   cancelText?: string
   type?: 'danger' | 'warning' | 'info'
   loading?: boolean
+  requireText?: string
+  requireTextPlaceholder?: string
 }
 
-withDefaults(defineProps<ConfirmModalProps>(), {
+const props = withDefaults(defineProps<ConfirmModalProps>(), {
   confirmText: '确认',
   cancelText: '取消',
   type: 'warning',
-  loading: false
+  loading: false,
+  requireText: '',
+  requireTextPlaceholder: '请输入确认文本',
 })
 
 const emit = defineEmits<{
-  confirm: []
+  confirm: [text: string]
   cancel: []
 }>()
+
+const confirmInput = ref('')
+
+const canConfirm = computed(() => {
+  if (!props.requireText) {
+    return true
+  }
+  return confirmInput.value.trim() === props.requireText.trim()
+})
+
+watch(
+  () => props.show,
+  (visible) => {
+    if (visible) {
+      confirmInput.value = ''
+    }
+  },
+)
 
 const typeStyles = {
   danger: {
@@ -73,6 +97,16 @@ const typeStyles = {
             {{ message }}
           </p>
           
+          <div v-if="requireText" class="mb-4">
+            <p class="mb-1 text-xs text-gray-500">请输入 <span class="font-semibold text-gray-700">{{ requireText }}</span> 以确认操作</p>
+            <input
+              v-model="confirmInput"
+              type="text"
+              :placeholder="requireTextPlaceholder"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+            />
+          </div>
+
           <!-- Buttons -->
           <div class="flex gap-3">
             <button
@@ -83,8 +117,8 @@ const typeStyles = {
               {{ cancelText }}
             </button>
             <button
-              @click="emit('confirm')"
-              :disabled="loading"
+              @click="emit('confirm', confirmInput.trim())"
+              :disabled="loading || !canConfirm"
               :class="['flex-1 px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed', typeStyles[type].button]"
             >
               <svg v-if="loading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
