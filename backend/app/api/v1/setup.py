@@ -337,21 +337,18 @@ async def create_admin(
                     )
                 )
 
-            # 插入初始化标记
-            settings_table = table(
-                "system_settings",
-                column("key", String),
-                column("value", String),
-                column("description", String),
-                column("updated_at", DateTime),
-            )
-
+            # upsert 初始化标记，避免重复插入导致唯一键冲突
             await conn.execute(
-                insert(settings_table).values(
-                    key="initialized",
-                    value="true",
-                    description="系统初始化完成标志",
-                    updated_at=datetime.utcnow(),
+                text(
+                    """
+                    INSERT INTO system_settings (key, value, description, updated_at)
+                    VALUES ('initialized', 'true', '系统初始化完成标志', NOW())
+                    ON CONFLICT (key)
+                    DO UPDATE SET
+                        value = EXCLUDED.value,
+                        description = EXCLUDED.description,
+                        updated_at = EXCLUDED.updated_at
+                    """
                 )
             )
 

@@ -4,42 +4,72 @@
 - Docker 状态检查
 - 数据库状态检查
 - 健康检查
-- 系统初始化
+- 系统初始化状态检查
 """
 
 import logging
-from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.core.config import settings
-from app.database import engine
-from app.models.instance import (
-    DatabaseConfig,
-    SystemInitializeRequest,
-    SystemInitializeResponse,
-)
+from app.core.db_config_manager import DatabaseConfig as AppConfig
+from app.database import get_engine
+from app.models.instance import DatabaseConfig, SystemInitializeRequest
 from app.utils.docker_utils import check_docker_status
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/system", tags=["系统管理"])
 
-# 全局变量记录初始化状态
-_initialized = False
 
+def success_response(data: Any = None, message: str = "操作成功") -> dict[str, Any]:
+    """生成成功响应。
 
-def success_response(data: Any = None, message: str = "操作成功") -> Dict[str, Any]:
-    """生成成功响应。"""
+    Args:
+        data: 响应数据
+        message: 成功消息
+
+    Returns:
+        dict[str, Any]: 统一格式响应
+    """
     return {"success": True, "message": message, "data": data}
 
 
-def error_response(message: str, code: int = 400) -> Dict[str, Any]:
-    """生成错误响应。"""
+def error_response(message: str, code: int = 400) -> dict[str, Any]:
+    """生成错误响应。
+
+    Args:
+        message: 错误消息
+        code: 错误码
+
+    Returns:
+        dict[str, Any]: 统一格式错误响应
+    """
     return {"success": False, "message": message, "code": code, "data": None}
+
+
+async def _is_initialized(database_url: str) -> bool:
+    """检查数据库中的初始化状态。
+
+    Args:
+        database_url: 数据库连接 URL
+
+    Returns:
+        bool: 是否已初始化
+    """
+    temp_engine = create_async_engine(database_url, echo=False, future=True)
+    try:
+        async with temp_engine.begin() as conn:
+            result = await conn.execute(
+                text("SELECT value FROM system_settings WHERE key = 'initialized'")
+            )
+            row = result.first()
+            return row is not None and row[0] == "true"
+    finally:
+        await temp_engine.dispose()
 
 
 @router.get(
@@ -52,16 +82,27 @@ async def check_init() -> JSONResponse:
 
     Returns:
         JSONResponse: 初始化状态信息
+
+    Raises:
+        RuntimeError: 数据库状态检查失败时抛出
     """
     logger.info("检查系统初始化状态")
 
-    # 简单判断：检查是否创建了第一个管理员用户
-    # 这里用一个简单的标记文件来判断
-    import os
-    from pathlib import Path
+    app_config = AppConfig.load()
+    if app_config is None:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=success_response(
+                data={"initialized": False},
+                message="系统未初始化",
+            ),
+        )
 
-    init_marker = Path("./data/.initialized")
-    is_initialized = init_marker.exists()
+    try:
+        is_initialized = await _is_initialized(app_config.database_url)
+    except Exception:
+        logger.warning("初始化状态检查失败", exc_info=True)
+        is_initialized = False
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -85,108 +126,58 @@ async def test_database(config: DatabaseConfig) -> JSONResponse:
 
     Returns:
         JSONResponse: 连接测试结果
+
+    Raises:
+        RuntimeError: 数据库连接失败时抛出
     """
-    logger.info(f"测试数据库连接：{config.host}:{config.port}/{config.database}")
+    logger.info("测试数据库连接：%s:%s/%s", config.host, config.port, config.database)
+
+    database_url = (
+        f"postgresql+asyncpg://{config.username}:{config.password}@"
+        f"{config.host}:{config.port}/{config.database}"
+    )
+    temp_engine = create_async_engine(database_url, echo=False, future=True, pool_pre_ping=True)
 
     try:
-        # 动态创建数据库 URL
-        database_url = f"postgresql+asyncpg://{config.username}:{config.password}@{config.host}:{config.port}/{config.database}"
-
-        # 创建临时引擎测试连接
-        from sqlalchemy.ext.asyncio import create_async_engine
-
-        temp_engine = create_async_engine(
-            database_url,
-            echo=False,
-            future=True,
-            pool_pre_ping=True,  # 连接前测试
-        )
-
-        # 尝试连接
         async with temp_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
 
-        # 关闭引擎
-        await temp_engine.dispose()
-
-        logger.info(
-            f"数据库连接测试成功：{config.host}:{config.port}/{config.database}"
-        )
-
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content=success_response(
-                data={"connected": True},
-                message="数据库连接成功",
-            ),
+            content=success_response(data={"connected": True}, message="数据库连接成功"),
         )
-
-    except Exception as e:
-        logger.error(f"数据库连接测试失败：{e}", exc_info=True)
+    except Exception as exc:
+        logger.error("数据库连接测试失败：%s", exc, exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_response(message=f"数据库连接失败：{str(e)}"),
+            content=error_response("数据库连接失败，请检查配置", status.HTTP_400_BAD_REQUEST),
         )
+    finally:
+        await temp_engine.dispose()
 
 
 @router.post(
     "/initialize",
     summary="系统初始化",
-    description="执行系统初始化配置，包括数据库和管理员账号",
+    description="该接口已废弃，请使用 /setup 下的初始化流程接口",
 )
-async def initialize_system(request: SystemInitializeRequest) -> JSONResponse:
-    """执行系统初始化。
+async def initialize_system(_request: SystemInitializeRequest) -> JSONResponse:
+    """系统初始化入口（废弃）。
 
     Args:
-        request: 初始化配置请求
+        _request: 初始化请求体（保留兼容）
 
     Returns:
-        JSONResponse: 初始化结果
+        JSONResponse: 错误提示
     """
-    global _initialized
-
-    logger.info("开始执行系统初始化")
-
-    try:
-        from pathlib import Path
-
-        # 1. 验证数据库配置
-        logger.info(f"验证数据库配置：{request.database.host}:{request.database.port}")
-
-        # 2. 保存配置到环境变量或配置文件
-        # 这里应该将配置写入 .env 文件或数据库
-        # 示例：更新 settings 对象
-        # settings.database_url = f"postgresql+asyncpg://{request.database.username}:{request.database.password}@{request.database.host}:{request.database.port}/{request.database.database}"
-
-        # 3. 创建管理员账号
-        logger.info(f"创建管理员账号：{request.admin.username}")
-        # 这里应该调用数据库创建管理员用户的逻辑
-        # await create_admin_user(request.admin.username, request.admin.email, request.admin.password)
-
-        # 4. 创建初始化标记文件
-        init_marker = Path("./data/.initialized")
-        init_marker.parent.mkdir(parents=True, exist_ok=True)
-        init_marker.write_text(f"Initialized at: {datetime.utcnow().isoformat()}")
-
-        # 5. 标记系统已初始化
-        _initialized = True
-
-        logger.info("系统初始化完成")
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=success_response(
-                data={"initialized": True},
-                message="系统初始化成功",
-            ),
-        )
-
-    except Exception as e:
-        logger.error(f"系统初始化失败：{e}", exc_info=True)
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=error_response(message=f"初始化失败：{str(e)}"),
-        )
+    logger.warning("调用了已废弃的 /system/initialize 接口")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=error_response(
+            message="请使用 /api/v1/setup/status、/initialize-db、/create-admin 完成初始化",
+            code=status.HTTP_400_BAD_REQUEST,
+        ),
+    )
 
 
 @router.get(
@@ -197,19 +188,14 @@ async def initialize_system(request: SystemInitializeRequest) -> JSONResponse:
 async def docker_status() -> JSONResponse:
     """检查 Docker 守护进程状态。
 
-    返回 Docker 是否运行、操作系统平台、版本等信息。
-
     Returns:
         JSONResponse: Docker 状态信息
     """
     logger.info("检查 Docker 状态")
 
     result = check_docker_status()
-    http_status = (
-        status.HTTP_200_OK if result["running"] else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
+    http_status = status.HTTP_200_OK if result["running"] else status.HTTP_503_SERVICE_UNAVAILABLE
 
-    # 使用统一响应格式
     return JSONResponse(
         status_code=http_status,
         content={
@@ -228,15 +214,16 @@ async def docker_status() -> JSONResponse:
 async def database_status() -> JSONResponse:
     """检查数据库连接状态。
 
-    返回数据库是否连接成功、版本信息等。
-
     Returns:
         JSONResponse: 数据库状态信息
+
+    Raises:
+        RuntimeError: 数据库连接失败时抛出
     """
     logger.info("检查数据库状态")
 
     try:
-        async with engine.connect() as conn:
+        async with get_engine().connect() as conn:
             result = await conn.execute(text("SELECT version()"))
             version = result.scalar()
             return JSONResponse(
@@ -248,15 +235,15 @@ async def database_status() -> JSONResponse:
                     "message": "数据库连接正常",
                 },
             )
-    except Exception as e:
-        logger.error(f"数据库连接失败: {e}")
+    except Exception as exc:
+        logger.error("数据库连接失败: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "connected": False,
                 "database": "PostgreSQL",
                 "version": None,
-                "message": f"数据库连接失败: {str(e)}",
+                "message": "数据库连接失败",
             },
         )
 
@@ -270,6 +257,6 @@ async def ping() -> dict[str, str]:
     """健康检查接口。
 
     Returns:
-        dict: 服务状态
+        dict[str, str]: 服务状态
     """
     return {"status": "ok", "message": "点点在看着你呢～ 💕"}
