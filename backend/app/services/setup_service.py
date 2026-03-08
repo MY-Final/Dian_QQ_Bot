@@ -1,0 +1,280 @@
+"""系统初始化业务服务模块。"""
+
+import logging
+import uuid
+from dataclasses import dataclass
+
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app.core.db_config_manager import DatabaseConfig as AppConfig
+from app.core.exceptions import (
+    AdminCreationError,
+    DatabaseConnectionError,
+    DatabaseInitializationError,
+    SetupError,
+)
+from app.database import Base, set_db_config
+from app.utils.security import hash_password
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SetupStatusResult:
+    """初始化状态结果。"""
+
+    initialized: bool
+
+
+class SetupService:
+    """系统初始化业务服务。"""
+
+    @staticmethod
+    def _build_database_url(
+        host: str,
+        port: int,
+        database: str,
+        username: str,
+        password: str,
+    ) -> str:
+        """构建数据库 URL。
+
+        Args:
+            host: 主机地址
+            port: 端口
+            database: 数据库名
+            username: 用户名
+            password: 密码
+
+        Returns:
+            str: 数据库连接 URL
+        """
+        return f"postgresql+asyncpg://{username}:{password}@{host}:{port}/{database}"
+
+    async def get_setup_status(
+        self,
+        host: str | None,
+        port: int | None,
+        database: str | None,
+        username: str | None,
+        password: str | None,
+    ) -> SetupStatusResult:
+        """检查初始化状态。
+
+        Args:
+            host: 数据库主机
+            port: 数据库端口
+            database: 数据库名称
+            username: 数据库用户名
+            password: 数据库密码
+
+        Returns:
+            SetupStatusResult: 初始化状态结果
+
+        Raises:
+            SetupError: 状态检查失败时抛出
+        """
+        if all([host, port, database, username, password]):
+            database_url = self._build_database_url(
+                host=host,
+                port=port,
+                database=database,
+                username=username,
+                password=password,
+            )
+        else:
+            saved_config = AppConfig.load()
+            if saved_config is None:
+                return SetupStatusResult(initialized=False)
+            database_url = saved_config.database_url
+
+        temp_engine = create_async_engine(database_url, echo=False, future=True)
+        try:
+            async with temp_engine.begin() as conn:
+                result = await conn.execute(
+                    text("SELECT value FROM system_settings WHERE key = 'initialized'")
+                )
+                row = result.first()
+                is_initialized = row is not None and row[0] == "true"
+            return SetupStatusResult(initialized=is_initialized)
+        except Exception:
+            logger.warning("检查初始化状态失败", exc_info=True)
+            return SetupStatusResult(initialized=False)
+        finally:
+            await temp_engine.dispose()
+
+    async def test_database_connection(
+        self,
+        host: str,
+        port: int,
+        database: str,
+        username: str,
+        password: str,
+    ) -> None:
+        """测试数据库连接。
+
+        Args:
+            host: 数据库主机
+            port: 数据库端口
+            database: 数据库名称
+            username: 用户名
+            password: 密码
+
+        Raises:
+            DatabaseConnectionError: 连接失败时抛出
+        """
+        database_url = self._build_database_url(host, port, database, username, password)
+        temp_engine = create_async_engine(database_url, echo=False, future=True, pool_pre_ping=True)
+        try:
+            async with temp_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        except Exception as exc:
+            logger.error("数据库连接测试失败: %s", exc, exc_info=True)
+            raise DatabaseConnectionError() from exc
+        finally:
+            await temp_engine.dispose()
+
+    async def initialize_database(
+        self,
+        host: str,
+        port: int,
+        database: str,
+        username: str,
+        password: str,
+    ) -> None:
+        """初始化数据库表。
+
+        Args:
+            host: 数据库主机
+            port: 数据库端口
+            database: 数据库名称
+            username: 用户名
+            password: 密码
+
+        Raises:
+            DatabaseInitializationError: 初始化失败时抛出
+        """
+        database_url = self._build_database_url(host, port, database, username, password)
+        temp_engine = create_async_engine(database_url, echo=False, future=True)
+        try:
+            async with temp_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        except Exception as exc:
+            logger.error("数据库表初始化失败", exc_info=True)
+            raise DatabaseInitializationError() from exc
+        finally:
+            await temp_engine.dispose()
+
+    async def create_admin(
+        self,
+        admin_username: str,
+        admin_email: str,
+        admin_password: str,
+        confirm_password: str,
+        host: str,
+        port: int,
+        database: str,
+        username: str,
+        password: str,
+    ) -> None:
+        """创建管理员并完成初始化。
+
+        Args:
+            admin_username: 管理员用户名
+            admin_email: 管理员邮箱
+            admin_password: 管理员密码
+            confirm_password: 确认密码
+            host: 数据库主机
+            port: 数据库端口
+            database: 数据库名称
+            username: 数据库用户名
+            password: 数据库密码
+
+        Raises:
+            AdminCreationError: 管理员创建失败时抛出
+            SetupError: 保存系统配置失败时抛出
+        """
+        if admin_password != confirm_password:
+            raise AdminCreationError("两次输入的密码不一致")
+
+        database_url = self._build_database_url(host, port, database, username, password)
+        temp_engine = create_async_engine(database_url, echo=False, future=True)
+
+        try:
+            password_hash = hash_password(admin_password)
+            async with temp_engine.begin() as conn:
+                user_result = await conn.execute(
+                    text("SELECT id FROM users WHERE username = :username"),
+                    {"username": admin_username},
+                )
+                existing_user = user_result.first()
+
+                if existing_user:
+                    await conn.execute(
+                        text(
+                            """
+                            UPDATE users
+                            SET email = :email,
+                                password_hash = :password_hash,
+                                role = :role,
+                                last_login = NULL
+                            WHERE username = :username
+                            """
+                        ),
+                        {
+                            "username": admin_username,
+                            "email": admin_email,
+                            "password_hash": password_hash,
+                            "role": "admin",
+                        },
+                    )
+                else:
+                    await conn.execute(
+                        text(
+                            """
+                            INSERT INTO users (id, username, email, password_hash, role, created_at)
+                            VALUES (:id::uuid, :username, :email, :password_hash, :role, NOW())
+                            """
+                        ),
+                        {
+                            "id": str(uuid.uuid4()),
+                            "username": admin_username,
+                            "email": admin_email,
+                            "password_hash": password_hash,
+                            "role": "admin",
+                        },
+                    )
+
+                await conn.execute(
+                    text(
+                        """
+                        INSERT INTO system_settings (key, value, description, updated_at)
+                        VALUES ('initialized', 'true', '系统初始化完成标志', NOW())
+                        ON CONFLICT (key)
+                        DO UPDATE SET
+                            value = EXCLUDED.value,
+                            description = EXCLUDED.description,
+                            updated_at = EXCLUDED.updated_at
+                        """
+                    )
+                )
+        except AdminCreationError:
+            raise
+        except Exception as exc:
+            logger.error("创建管理员失败", exc_info=True)
+            raise AdminCreationError() from exc
+        finally:
+            await temp_engine.dispose()
+
+        app_db_config = AppConfig(
+            host=host,
+            port=port,
+            database=database,
+            username=username,
+            password=password,
+        )
+        if not app_db_config.save():
+            raise SetupError("数据库配置保存失败，请检查 data 目录权限")
+
+        set_db_config(app_db_config)

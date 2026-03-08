@@ -75,3 +75,31 @@ class PortAllocationError(BotError):
     def __init__(self, port: int) -> None:
         super().__init__(f"分配端口 {port} 失败")
         self.port = port
+
+
+class SetupError(BotError):
+    """系统初始化流程异常基类。"""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+class DatabaseConnectionError(SetupError):
+    """数据库连接失败异常。"""
+
+    def __init__(self) -> None:
+        super().__init__("数据库连接失败，请检查配置后重试")
+
+
+class DatabaseInitializationError(SetupError):
+    """数据库初始化失败异常。"""
+
+    def __init__(self) -> None:
+        super().__init__("数据库表创建失败，请稍后重试")
+
+
+class AdminCreationError(SetupError):
+    """管理员创建失败异常。"""
+
+    def __init__(self, message: str = "创建管理员失败，请稍后重试") -> None:
+        super().__init__(message)
