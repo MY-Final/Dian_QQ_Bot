@@ -15,7 +15,7 @@ from app.core.exceptions import (
     DatabaseInitializationError,
     SetupError,
 )
-from app.database import Base, set_db_config
+from app.database import Base, _ensure_runtime_schema, set_db_config
 from app.models.settings import SystemSetting  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.utils.security import hash_password
@@ -169,6 +169,7 @@ class SetupService:
         try:
             async with temp_engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                await _ensure_runtime_schema(conn)
         except Exception as exc:
             logger.error("数据库表初始化失败", exc_info=True)
             raise DatabaseInitializationError() from exc
@@ -214,6 +215,7 @@ class SetupService:
             password_hash = hash_password(admin_password)
             async with temp_engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                await _ensure_runtime_schema(conn)
 
                 user_result = await conn.execute(
                     text("SELECT id FROM users WHERE username = :username"),

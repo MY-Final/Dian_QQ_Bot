@@ -7,7 +7,8 @@
 import logging
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import text
 
 from app.core.db_config_manager import DatabaseConfig as AppConfig
 from app.models.db_models import BotInstanceDB, Base
@@ -152,8 +153,41 @@ async def init_db() -> None:
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_runtime_schema(conn)
 
     logger.info("数据库表初始化完成")
+
+
+async def _ensure_runtime_schema(conn: AsyncConnection) -> None:
+    """确保运行时所需列存在。
+
+    Args:
+        conn: 数据库连接对象
+    """
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE bot_instances
+            ADD COLUMN IF NOT EXISTS image_repo VARCHAR(255) NOT NULL DEFAULT 'mlikiowa/napcat-docker'
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE bot_instances
+            ADD COLUMN IF NOT EXISTS image_tag VARCHAR(100) NOT NULL DEFAULT 'latest'
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE bot_instances
+            ADD COLUMN IF NOT EXISTS image_digest VARCHAR(255)
+            """
+        )
+    )
 
 
 async def save_instance(db_instance: BotInstanceDB) -> BotInstanceDB:
@@ -200,6 +234,9 @@ async def update_instance(db_instance: BotInstanceDB) -> BotInstanceDB:
         db_obj.port = db_instance.port
         db_obj.volume_path = db_instance.volume_path
         db_obj.description = db_instance.description
+        db_obj.image_repo = db_instance.image_repo
+        db_obj.image_tag = db_instance.image_tag
+        db_obj.image_digest = db_instance.image_digest
         db_obj.updated_at = db_instance.updated_at
 
         await session.commit()

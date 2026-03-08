@@ -50,6 +50,8 @@ class InstanceCreate(BaseModel):
     # NapCat 环境变量配置
     napcat_uid: Optional[int] = Field(None, ge=0, description="NAPCAT_UID 用户ID")
     napcat_gid: Optional[int] = Field(None, ge=0, description="NAPCAT_GID 组ID")
+    image_repo: Optional[str] = Field(None, min_length=1, max_length=255, description="镜像仓库")
+    image_tag: Optional[str] = Field(None, min_length=1, max_length=100, description="镜像版本")
 
 
 class InstanceResponse(BaseModel):
@@ -70,8 +72,19 @@ class InstanceResponse(BaseModel):
     port_ws: Optional[int] = Field(default=None, description="WebSocket 端口")
     volume_path: str = Field(..., description="卷挂载路径")
     description: Optional[str] = Field(default=None, description="可选描述")
+    image_repo: str = Field(..., description="镜像仓库")
+    image_tag: str = Field(..., description="镜像版本")
+    image_digest: Optional[str] = Field(default=None, description="镜像摘要")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="最后更新时间")
+
+
+class InstanceImageUpdate(BaseModel):
+    """更新实例镜像版本请求模型。"""
+
+    image_repo: str = Field(..., min_length=1, max_length=255, description="镜像仓库")
+    image_tag: str = Field(..., min_length=1, max_length=100, description="镜像版本")
+    auto_pull: bool = Field(default=False, description="若本地不存在是否自动拉取")
 
 
 class InstanceStart(BaseModel):

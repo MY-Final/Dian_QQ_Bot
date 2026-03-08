@@ -72,6 +72,8 @@ class InstanceService:
             port_ws=data.port_ws,
             napcat_uid=data.napcat_uid,
             napcat_gid=data.napcat_gid,
+            image_repo=data.image_repo,
+            image_tag=data.image_tag,
         )
         logger.info("实例创建成功: instance_id=%s, name=%s", instance.id, data.name)
         return self._serialize_instance_model(instance.model_dump())
@@ -326,6 +328,9 @@ class InstanceService:
             "port_ws": db_instance.port_ws,
             "volume_path": db_instance.volume_path,
             "description": db_instance.description,
+            "image_repo": db_instance.image_repo,
+            "image_tag": db_instance.image_tag,
+            "image_digest": db_instance.image_digest,
             "created_at": db_instance.created_at.isoformat() if db_instance.created_at else None,
             "updated_at": db_instance.updated_at.isoformat() if db_instance.updated_at else None,
         }

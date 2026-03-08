@@ -95,6 +95,9 @@ class NapCatManager(BaseBotManager):
             port_ws=db_instance.port_ws,
             volume_path=db_instance.volume_path,
             description=db_instance.description,
+            image_repo=db_instance.image_repo,
+            image_tag=db_instance.image_tag,
+            image_digest=db_instance.image_digest,
             created_at=db_instance.created_at,
             updated_at=db_instance.updated_at,
         )
@@ -110,6 +113,8 @@ class NapCatManager(BaseBotManager):
         port_ws: Optional[int] = None,
         napcat_uid: Optional[int] = None,
         napcat_gid: Optional[int] = None,
+        image_repo: Optional[str] = None,
+        image_tag: Optional[str] = None,
     ) -> InstanceResponse:
         """创建新的 NapCat Bot 实例。
 
@@ -123,6 +128,8 @@ class NapCatManager(BaseBotManager):
             port_ws: WebSocket 端口（可选，不指定则使用 HTTP+1）
             napcat_uid: NAPCAT_UID 用户ID（可选）
             napcat_gid: NAPCAT_GID 组ID（可选）
+            image_repo: 镜像仓库（可选）
+            image_tag: 镜像版本（可选）
 
         Returns:
             InstanceResponse: 创建的实例详情
@@ -185,6 +192,11 @@ class NapCatManager(BaseBotManager):
 
         now = datetime.utcnow()
 
+        default_repo, default_tag = self._parse_image_reference(settings.napcat_image)
+        resolved_image_repo = image_repo or default_repo
+        resolved_image_tag = image_tag or default_tag
+        image_reference = f"{resolved_image_repo}:{resolved_image_tag}"
+
         db_instance = BotInstanceDB(
             id=instance_id,
             name=name,
@@ -197,6 +209,8 @@ class NapCatManager(BaseBotManager):
             port_ws=ws_port if ws_port else None,
             volume_path=str(volume_path),
             description=description,
+            image_repo=resolved_image_repo,
+            image_tag=resolved_image_tag,
             created_at=now,
             updated_at=now,
         )
@@ -207,7 +221,7 @@ class NapCatManager(BaseBotManager):
         # 同步创建容器，确保结果可追踪
         try:
             container = self.client.containers.run(
-                image=settings.napcat_image,
+                image=image_reference,
                 name=container_name,
                 ports=ports_mapping,
                 volumes=get_docker_volume_bind(volume_path),
@@ -220,6 +234,7 @@ class NapCatManager(BaseBotManager):
             # 更新 DB 为 RUNNING，并记录实际信息
             db_instance.status = InstanceStatus.RUNNING.value
             db_instance.updated_at = datetime.utcnow()
+            db_instance.image_digest = self._resolve_image_digest(image_reference)
             db_instance = await update_instance(db_instance)
 
         except DockerException as e:
@@ -232,6 +247,24 @@ class NapCatManager(BaseBotManager):
         logger.info(f"NapCat 实例创建完成: instance_id={instance_id}")
 
         return self._db_to_response(db_instance)
+
+    def _resolve_image_digest(self, image_reference: str) -> Optional[str]:
+        """解析本地镜像摘要。
+
+        Args:
+            image_reference: 镜像引用
+
+        Returns:
+            Optional[str]: 镜像摘要
+        """
+        try:
+            image = self.client.images.get(image_reference)
+            repo_digests = image.attrs.get("RepoDigests", [])
+            if repo_digests:
+                return str(repo_digests[0])
+        except DockerException:
+            logger.warning("解析镜像摘要失败: image=%s", image_reference)
+        return None
 
     async def start(self, instance_id: str) -> InstanceResponse:
         """启动 NapCat Bot 实例。
@@ -499,3 +532,17 @@ class NapCatManager(BaseBotManager):
             return instances
 
         return instances
+    @staticmethod
+    def _parse_image_reference(image_reference: str) -> tuple[str, str]:
+        """解析镜像引用为仓库和版本。
+
+        Args:
+            image_reference: 镜像引用字符串
+
+        Returns:
+            tuple[str, str]: (镜像仓库, 镜像版本)
+        """
+        if ":" in image_reference.rsplit("/", 1)[-1]:
+            repository, tag = image_reference.rsplit(":", 1)
+            return repository, tag
+        return image_reference, "latest"

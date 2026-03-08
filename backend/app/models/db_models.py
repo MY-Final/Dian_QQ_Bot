@@ -36,6 +36,9 @@ class BotInstanceDB(Base):
     )  # WebSocket 端口
     volume_path: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_repo: Mapped[str] = mapped_column(String(255), nullable=False, default="mlikiowa/napcat-docker")
+    image_tag: Mapped[str] = mapped_column(String(100), nullable=False, default="latest")
+    image_digest: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
