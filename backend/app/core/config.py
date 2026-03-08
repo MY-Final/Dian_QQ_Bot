@@ -3,7 +3,6 @@
 使用 Pydantic Settings 进行配置管理，支持从环境变量读取配置。
 """
 
-import os
 from pathlib import Path
 
 from pydantic import Field
@@ -23,6 +22,15 @@ class Settings(BaseSettings):
     # 服务器配置
     host: str = Field(default="0.0.0.0", env="HOST")
     port: int = Field(default=8000, env="PORT")
+
+    # CORS 配置
+    cors_allowed_origins: str = Field(
+        default=(
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "http://localhost:6173,http://127.0.0.1:6173"
+        ),
+        env="CORS_ALLOWED_ORIGINS",
+    )
 
     # 路径配置
     data_dir: Path = Field(default=Path("./data"), env="DATA_DIR")
@@ -72,6 +80,19 @@ class Settings(BaseSettings):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.instances_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """获取 CORS 允许的来源列表。
+
+        Returns:
+            list[str]: 允许跨域访问的来源
+        """
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 # 全局配置单例
