@@ -4,6 +4,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -75,7 +76,13 @@ class SetupService:
         Raises:
             SetupError: 状态检查失败时抛出
         """
-        if all([host, port, database, username, password]):
+        if (
+            host is not None
+            and port is not None
+            and database is not None
+            and username is not None
+            and password is not None
+        ):
             database_url = self._build_database_url(
                 host=host,
                 port=port,
@@ -234,11 +241,11 @@ class SetupService:
                         text(
                             """
                             INSERT INTO users (id, username, email, password_hash, role, created_at)
-                            VALUES (:id::uuid, :username, :email, :password_hash, :role, NOW())
+                            VALUES (:id, :username, :email, :password_hash, :role, NOW())
                             """
                         ),
                         {
-                            "id": str(uuid.uuid4()),
+                            "id": uuid.uuid4(),
                             "username": admin_username,
                             "email": admin_email,
                             "password_hash": password_hash,
@@ -261,9 +268,12 @@ class SetupService:
                 )
         except AdminCreationError:
             raise
+        except SQLAlchemyError as exc:
+            logger.error("创建管理员失败", exc_info=True)
+            raise self._map_admin_creation_error(exc) from exc
         except Exception as exc:
             logger.error("创建管理员失败", exc_info=True)
-            raise AdminCreationError() from exc
+            raise self._map_admin_creation_error(exc) from exc
         finally:
             await temp_engine.dispose()
 
@@ -278,3 +288,23 @@ class SetupService:
             raise SetupError("数据库配置保存失败，请检查 data 目录权限")
 
         set_db_config(app_db_config)
+    @staticmethod
+    def _map_admin_creation_error(exc: Exception) -> AdminCreationError:
+        """将底层异常映射为可读的管理员创建异常。
+
+        Args:
+            exc: 原始异常
+
+        Returns:
+            AdminCreationError: 映射后的业务异常
+        """
+        error_text = str(exc)
+        error_type = exc.__class__.__name__
+
+        if "InvalidPasswordError" in error_type or "password authentication failed" in error_text:
+            return AdminCreationError("数据库认证失败，请检查数据库用户名或密码")
+
+        if "ConnectionRefusedError" in error_type or "connect" in error_text.lower():
+            return AdminCreationError("数据库连接失败，请检查地址、端口和网络可达性")
+
+        return AdminCreationError()
