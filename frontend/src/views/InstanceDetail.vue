@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { instanceApi, type Instance } from '../api'
+import { getErrorMessage, instanceApi, type Instance } from '../api'
 import { useInstanceStore } from '../stores/instance'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import Toast from '../components/ui/Toast.vue'
@@ -63,11 +63,9 @@ async function fetchInstance() {
   loading.value = true
   try {
     const response = await instanceApi.get(instanceId.value)
-    console.log('Instance data:', response.data.data)
     instance.value = response.data.data || null
-  } catch (e) {
-    console.error('Failed to fetch instance:', e)
-    toast.error('获取实例详情失败')
+  } catch (error) {
+    toast.error(getErrorMessage(error, '获取实例详情失败'))
   } finally {
     loading.value = false
   }
@@ -88,7 +86,7 @@ async function fetchLogs() {
         }
       }, 100)
     }
-  } catch (e) {
+  } catch {
     logs.value = '获取日志失败'
     toast.error('获取日志失败')
   } finally {
@@ -144,9 +142,8 @@ async function startInstance() {
     } else {
       toast.error(response.data.message || '启动失败')
     }
-  } catch (e: any) {
-    console.error('Failed to start instance:', e)
-    toast.error(e.message || '启动实例失败')
+  } catch (error) {
+    toast.error(getErrorMessage(error, '启动实例失败'))
   } finally {
     actionLoading.value = false
     actionType.value = null
@@ -172,9 +169,8 @@ async function stopInstance() {
         } else {
           toast.error(response.data.message || '停止失败')
         }
-      } catch (e: any) {
-        console.error('Failed to stop instance:', e)
-        toast.error(e.message || '停止实例失败')
+      } catch (error) {
+        toast.error(getErrorMessage(error, '停止实例失败'))
       } finally {
         actionLoading.value = false
         actionType.value = null
@@ -202,9 +198,8 @@ async function restartInstance() {
         } else {
           toast.error(response.data.message || '重启失败')
         }
-      } catch (e: any) {
-        console.error('Failed to restart instance:', e)
-        toast.error(e.message || '重启实例失败')
+      } catch (error) {
+        toast.error(getErrorMessage(error, '重启实例失败'))
       } finally {
         actionLoading.value = false
         actionType.value = null
@@ -230,9 +225,8 @@ async function deleteInstance() {
         } else {
           toast.error(response.data.message || '删除失败')
         }
-      } catch (e: any) {
-        console.error('Failed to delete instance:', e)
-        toast.error(e.message || '删除实例失败')
+      } catch (error) {
+        toast.error(getErrorMessage(error, '删除实例失败'))
       }
     },
   })
@@ -268,8 +262,8 @@ async function handleConfirm() {
     try {
       await confirmModal.value.action()
       closeConfirm()
-    } catch (e) {
-      console.error('Confirm action failed:', e)
+    } catch {
+      toast.error('操作执行失败，请重试')
     } finally {
       confirmModal.value.loading = false
     }

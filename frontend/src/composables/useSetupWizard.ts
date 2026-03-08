@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { setupApi } from '@/api'
+import { getErrorMessage, setupApi } from '@/api'
 import type { DatabaseConfig } from '@/types/setup'
 
 export interface AdminConfig {
@@ -113,8 +113,8 @@ export function useSetupWizard() {
       } else {
         return { success: false, message: response.data.message }
       }
-    } catch (error: any) {
-      return { success: false, message: error.message || '连接失败' }
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error, '连接失败') }
     } finally {
       testingConnection.value = false
     }
@@ -133,8 +133,8 @@ export function useSetupWizard() {
       } else {
         return { success: false, message: response.data.message }
       }
-    } catch (error: any) {
-      return { success: false, message: error.message || '初始化失败' }
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error, '初始化失败') }
     } finally {
       initializingDb.value = false
     }
@@ -162,8 +162,8 @@ export function useSetupWizard() {
       } else {
         return { success: false, message: response.data.message }
       }
-    } catch (error: any) {
-      return { success: false, message: error.message || '创建失败' }
+    } catch (error) {
+      return { success: false, message: getErrorMessage(error, '创建失败') }
     } finally {
       creatingAdmin.value = false
     }

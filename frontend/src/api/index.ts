@@ -1,11 +1,35 @@
-import axios, { type AxiosResponse } from 'axios'
+import axios, { AxiosError, type AxiosResponse } from 'axios'
 
 // 统一响应格式
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean
   message: string
   data?: T
   code?: number
+}
+
+export interface ApiError {
+  success: false
+  message: string
+  code: number
+}
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message
+    }
+  }
+
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<{ message?: string }>
+    if (axiosError.response?.data?.message) {
+      return axiosError.response.data.message
+    }
+  }
+
+  return fallback
 }
 
 const api = axios.create({
@@ -22,12 +46,13 @@ api.interceptors.response.use(
     // 后端已经返回统一格式，直接返回
     return response
   },
-  (error) => {
+  (error: unknown) => {
     // 统一错误处理
-    const errorResponse: ApiResponse = {
+    const axiosError = error as AxiosError<{ message?: string }>
+    const errorResponse: ApiError = {
       success: false,
-      message: error.response?.data?.message || error.message || '网络错误',
-      code: error.response?.status || 500,
+      message: getErrorMessage(error, '网络错误'),
+      code: axiosError.response?.status || 500,
     }
     return Promise.reject(errorResponse)
   }

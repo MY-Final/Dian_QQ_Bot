@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { type InstanceCreate } from '@/api'
 import { useInstanceStore } from '../stores/instance'
 
 const router = useRouter()
@@ -84,7 +85,7 @@ async function handleSubmit() {
   error.value = ''
 
   // 构建提交数据，包含所有字段
-  const createData: any = {
+  const createData: InstanceCreate = {
     name: name.value,
     qq_number: qqNumber.value,
     protocol: protocol.value as 'napcat' | 'llonebot' | 'custom',
@@ -104,8 +105,6 @@ async function handleSubmit() {
   if (portWebUi.value !== null && portWebUi.value !== undefined && portWebUi.value !== 0) {
     createData.port_web_ui = portWebUi.value
   }
-
-  console.log('提交的数据:', createData)
 
   const result = await store.createInstance(createData)
 

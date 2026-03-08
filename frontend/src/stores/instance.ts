@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { 
   instanceApi, 
   systemApi,
+  getErrorMessage,
   type Instance, 
   type InstanceCreate,
 } from '../api'
@@ -54,8 +55,8 @@ export const useSystemStore = defineStore('system', () => {
       const response = await systemApi.dockerStatus()
       dockerStatus.value = response.data.data || null
       return response.data.success
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '检查 Docker 状态失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '检查 Docker 状态失败')
       dockerStatus.value = {
         running: false,
         platform: 'unknown',
@@ -76,8 +77,8 @@ export const useSystemStore = defineStore('system', () => {
       const response = await systemApi.databaseStatus()
       databaseStatus.value = response.data.data || null
       return response.data.success
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '检查数据库状态失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '检查数据库状态失败')
       databaseStatus.value = {
         connected: false,
         database: 'PostgreSQL',
@@ -167,8 +168,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '获取实例列表失败'
         instances.value = []
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '获取实例列表失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '获取实例列表失败')
       instances.value = []
     } finally {
       loading.value = false
@@ -189,8 +190,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '获取实例详情失败'
         return null
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '获取实例详情失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '获取实例详情失败')
       return null
     } finally {
       loading.value = false
@@ -210,8 +211,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '创建失败'
         return null
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '创建实例失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '创建实例失败')
       return null
     } finally {
       loading.value = false
@@ -231,8 +232,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '启动失败'
         return false
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '启动实例失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '启动实例失败')
       return false
     } finally {
       loading.value = false
@@ -253,8 +254,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '停止失败'
         return false
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '停止实例失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '停止实例失败')
       return false
     } finally {
       loading.value = false
@@ -274,8 +275,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '重启失败'
         return false
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '重启实例失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '重启实例失败')
       return false
     } finally {
       loading.value = false
@@ -298,8 +299,8 @@ export const useInstanceStore = defineStore('instances', () => {
         error.value = response.data.message || '删除失败'
         return false
       }
-    } catch (e: any) {
-      error.value = e.response?.data?.message || e.message || '删除实例失败'
+    } catch (err) {
+      error.value = getErrorMessage(err, '删除实例失败')
       return false
     } finally {
       loading.value = false
