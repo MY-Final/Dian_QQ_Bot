@@ -25,6 +25,7 @@ const realtimeInterval = ref<number | null>(null)
 const logsContainer = ref<HTMLElement | null>(null)
 const autoScroll = ref(true)
 const logLines = ref(50)
+const logCursor = ref(0)
 
 const instanceId = computed(() => route.params.id as string)
 
@@ -43,6 +44,7 @@ onMounted(async () => {
   await fetchInstance()
   // 如果实例正在运行，默认开启实时日志
   if (instance.value?.status === 'running') {
+    resetLogCursor()
     await fetchLogs()
     toggleRealtime(true)
   }
@@ -75,9 +77,22 @@ async function fetchLogs() {
   if (!instanceId.value) return
   logsLoading.value = true
   try {
-    const response = await instanceApi.logs(instanceId.value, logLines.value)
-    const newLogs = response.data.data?.logs || '暂无日志'
-    logs.value = newLogs
+    const response = await instanceApi.logs(instanceId.value, logLines.value, logCursor.value)
+    const logsPayload = response.data.data
+
+    if (!logsPayload) {
+      logs.value = logs.value || '暂无日志'
+      return
+    }
+
+    if (logCursor.value === 0) {
+      logs.value = logsPayload.logs || '暂无日志'
+    } else if (logsPayload.logs) {
+      logs.value = logs.value ? `${logs.value}\n${logsPayload.logs}` : logsPayload.logs
+    }
+
+    logCursor.value = logsPayload.next_cursor
+
     // 自动滚动到底部
     if (autoScroll.value && logsContainer.value) {
       setTimeout(() => {
@@ -124,6 +139,15 @@ function stopRealtime() {
   }
 }
 
+function resetLogCursor() {
+  logCursor.value = 0
+}
+
+async function reloadLogs() {
+  resetLogCursor()
+  await fetchLogs()
+}
+
 async function startInstance() {
   if (!instance.value) return
   actionLoading.value = true
@@ -136,7 +160,7 @@ async function startInstance() {
       await store.fetchInstances(true)
       // 启动成功后自动开启实时日志
       setTimeout(() => {
-        fetchLogs()
+        reloadLogs()
         toggleRealtime(true)
       }, 1000)
     } else {
@@ -343,6 +367,7 @@ async function copyLogs() {
 // 清空日志显示
 function clearLogs() {
   logs.value = ''
+  resetLogCursor()
 }
 </script>
 
@@ -453,7 +478,7 @@ function clearLogs() {
                 </div>
                 <div>
                   <p class="text-xs text-gray-500 mb-0.5">WebSocket 端口</p>
-                  <p class="text-sm font-medium text-gray-900 font-mono">{{ instance.port ? instance.port + 1 : '-' }}</p>
+                  <p class="text-sm font-medium text-gray-900 font-mono">{{ instance.port_ws || '-' }}</p>
                 </div>
                 <div>
                   <p class="text-xs text-gray-500 mb-0.5">API 地址</p>
@@ -602,7 +627,7 @@ function clearLogs() {
               <div class="relative">
                 <select 
                   v-model="logLines" 
-                  @change="fetchLogs"
+                  @change="reloadLogs"
                   class="appearance-none px-3 py-1.5 pr-8 text-xs bg-white border border-gray-300 rounded-lg text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent cursor-pointer hover:border-gray-400 transition-colors min-w-[70px]"
                 >
                   <option :value="50">50 行</option>
@@ -638,7 +663,7 @@ function clearLogs() {
 
               <!-- 刷新按钮 -->
               <button
-                @click="fetchLogs"
+                @click="reloadLogs"
                 :disabled="logsLoading"
                 class="text-pink-500 hover:text-pink-600 text-sm disabled:opacity-50 inline-flex items-center gap-1 transition-colors"
               >

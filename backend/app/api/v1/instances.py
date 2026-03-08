@@ -328,6 +328,7 @@ async def delete_instance(
 async def get_instance_logs(
     instance_id: str,
     tail: int = 100,
+    cursor: int = 0,
     service: InstanceService = Depends(get_instance_service),
 ) -> JSONResponse:
     """获取 Bot 实例日志。
@@ -335,6 +336,7 @@ async def get_instance_logs(
     Args:
         instance_id: 实例 ID
         tail: 获取的日志行数
+        cursor: 日志游标（行偏移）
         service: 实例业务服务
 
     Returns:
@@ -345,10 +347,10 @@ async def get_instance_logs(
         BotError: 日志获取失败时抛出
     """
     try:
-        logs = await service.get_instance_logs(instance_id, tail)
+        logs_data = await service.get_instance_logs(instance_id, tail, cursor)
         return JSONResponse(
             content=success_response(
-                data={"logs": logs, "instance_id": instance_id, "tail": tail},
+                data=logs_data,
                 message="日志获取成功",
             )
         )

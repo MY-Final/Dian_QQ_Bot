@@ -76,6 +76,16 @@ export interface Instance {
   updated_at: string
 }
 
+export interface InstanceLogsPayload {
+  logs: string
+  instance_id: string
+  tail: number
+  cursor: number
+  next_cursor: number
+  full_line_count: number
+  has_more: boolean
+}
+
 export interface InstanceCreate {
   name: string
   qq_number: string
@@ -180,9 +190,9 @@ export const instanceApi = {
   delete: (id: string) => api.delete<ApiResponse<{ id: string }>>(`/instances/${id}`),
   
   /** 获取实例日志 */
-  logs: (id: string, tail: number = 100) => 
-    api.get<ApiResponse<{ logs: string; instance_id: string; tail: number }>>(
+  logs: (id: string, tail: number = 100, cursor: number = 0) =>
+    api.get<ApiResponse<InstanceLogsPayload>>(
       `/instances/${id}/logs`,
-      { params: { tail } }
+      { params: { tail, cursor } }
     ),
 }

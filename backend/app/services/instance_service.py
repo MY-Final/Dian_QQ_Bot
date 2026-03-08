@@ -4,7 +4,9 @@
 """
 
 import logging
+import asyncio
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import select
 
@@ -20,6 +22,8 @@ logger = logging.getLogger(__name__)
 class InstanceService:
     """Bot 实例业务服务。"""
 
+    _instance_locks: dict[str, asyncio.Lock] = {}
+
     def __init__(self, manager: NapCatManager) -> None:
         """初始化服务。
 
@@ -27,6 +31,24 @@ class InstanceService:
             manager: NapCat 管理器实例
         """
         self._manager = manager
+
+    @classmethod
+    def _get_instance_lock(cls, instance_id: str) -> asyncio.Lock:
+        """获取实例级互斥锁。
+
+        Args:
+            instance_id: 实例 ID
+
+        Returns:
+            asyncio.Lock: 实例级锁
+        """
+        existing_lock = cls._instance_locks.get(instance_id)
+        if existing_lock is not None:
+            return existing_lock
+
+        new_lock = asyncio.Lock()
+        cls._instance_locks[instance_id] = new_lock
+        return new_lock
 
     async def create_instance(self, data: InstanceCreate) -> dict[str, object]:
         """创建实例。
@@ -51,6 +73,7 @@ class InstanceService:
             napcat_uid=data.napcat_uid,
             napcat_gid=data.napcat_gid,
         )
+        logger.info("实例创建成功: instance_id=%s, name=%s", instance.id, data.name)
         return self._serialize_instance_model(instance.model_dump())
 
     async def list_instances(self) -> list[dict[str, object]]:
@@ -66,7 +89,30 @@ class InstanceService:
             async with get_session_maker()() as session:
                 result = await session.execute(select(BotInstanceDB))
                 db_instances = result.scalars().all()
-                return [self._serialize_db_instance(item) for item in db_instances]
+
+                serialized_instances: list[dict[str, object]] = []
+                has_status_change = False
+                for db_instance in db_instances:
+                    runtime_status_value = db_instance.status
+                    try:
+                        runtime_status = await self._manager.get_status(db_instance.id)
+                        runtime_status_value = runtime_status.value
+                    except BotError:
+                        runtime_status_value = InstanceStatus.ERROR.value
+
+                    if db_instance.status != runtime_status_value:
+                        db_instance.status = runtime_status_value
+                        db_instance.updated_at = datetime.utcnow()
+                        has_status_change = True
+
+                    serialized_instance = self._serialize_db_instance(db_instance)
+                    serialized_instance["status"] = runtime_status_value
+                    serialized_instances.append(serialized_instance)
+
+                if has_status_change:
+                    await session.commit()
+
+                return serialized_instances
         except Exception as exc:
             logger.error("查询实例列表失败", exc_info=True)
             raise BotError("获取实例列表失败，请稍后重试") from exc
@@ -118,8 +164,10 @@ class InstanceService:
             BotNotFoundError: 实例不存在时抛出
             BotError: 启动失败时抛出
         """
-        await self._manager.start(instance_id)
-        return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
+        async with self._get_instance_lock(instance_id):
+            await self._manager.start(instance_id)
+            logger.info("实例启动成功: instance_id=%s", instance_id)
+            return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
 
     async def stop_instance(self, instance_id: str) -> dict[str, object]:
         """停止实例。
@@ -134,8 +182,10 @@ class InstanceService:
             BotNotFoundError: 实例不存在时抛出
             BotError: 停止失败时抛出
         """
-        await self._manager.stop(instance_id)
-        return await self._update_status_and_get(instance_id, InstanceStatus.STOPPED)
+        async with self._get_instance_lock(instance_id):
+            await self._manager.stop(instance_id)
+            logger.info("实例停止成功: instance_id=%s", instance_id)
+            return await self._update_status_and_get(instance_id, InstanceStatus.STOPPED)
 
     async def restart_instance(self, instance_id: str) -> dict[str, object]:
         """重启实例。
@@ -150,9 +200,11 @@ class InstanceService:
             BotNotFoundError: 实例不存在时抛出
             BotError: 重启失败时抛出
         """
-        await self._manager.stop(instance_id)
-        await self._manager.start(instance_id)
-        return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
+        async with self._get_instance_lock(instance_id):
+            await self._manager.stop(instance_id)
+            await self._manager.start(instance_id)
+            logger.info("实例重启成功: instance_id=%s", instance_id)
+            return await self._update_status_and_get(instance_id, InstanceStatus.RUNNING)
 
     async def delete_instance(self, instance_id: str) -> None:
         """删除实例。
@@ -165,14 +217,16 @@ class InstanceService:
             BotError: 删除失败时抛出
         """
         try:
-            async with get_session_maker()() as session:
-                db_instance = await session.get(BotInstanceDB, instance_id)
-                if db_instance is None:
-                    raise BotNotFoundError(instance_id)
+            async with self._get_instance_lock(instance_id):
+                async with get_session_maker()() as session:
+                    db_instance = await session.get(BotInstanceDB, instance_id)
+                    if db_instance is None:
+                        raise BotNotFoundError(instance_id)
 
-                await self._manager.delete(instance_id)
-                await session.delete(db_instance)
-                await session.commit()
+                    await self._manager.delete(instance_id)
+                    await session.delete(db_instance)
+                    await session.commit()
+                    logger.info("实例删除成功: instance_id=%s", instance_id)
         except BotNotFoundError:
             raise
         except BotError:
@@ -181,21 +235,38 @@ class InstanceService:
             logger.error("删除实例失败: instance_id=%s", instance_id, exc_info=True)
             raise BotError("删除实例失败，请稍后重试") from exc
 
-    async def get_instance_logs(self, instance_id: str, tail: int) -> str:
+    async def get_instance_logs(self, instance_id: str, tail: int, cursor: int) -> dict[str, object]:
         """获取实例日志。
 
         Args:
             instance_id: 实例 ID
             tail: 日志行数
+            cursor: 日志游标（行偏移）
 
         Returns:
-            str: 日志文本
+            dict[str, object]: 日志数据和游标信息
 
         Raises:
             BotNotFoundError: 实例不存在时抛出
             BotError: 日志获取失败时抛出
         """
-        return await self._manager.get_logs(instance_id, tail)
+        logs_text = await self._manager.get_logs(instance_id, tail)
+        log_lines = logs_text.splitlines()
+
+        safe_cursor = max(cursor, 0)
+        if safe_cursor > len(log_lines):
+            safe_cursor = len(log_lines)
+
+        incremental_lines = log_lines[safe_cursor:]
+        return {
+            "logs": "\n".join(incremental_lines),
+            "instance_id": instance_id,
+            "tail": tail,
+            "cursor": safe_cursor,
+            "next_cursor": len(log_lines),
+            "full_line_count": len(log_lines),
+            "has_more": len(log_lines) > safe_cursor,
+        }
 
     async def _update_status_and_get(
         self,
@@ -273,7 +344,7 @@ class InstanceService:
         for key, value in data.items():
             if isinstance(value, datetime):
                 serialized[key] = value.isoformat()
-            elif hasattr(value, "value"):
+            elif isinstance(value, Enum):
                 serialized[key] = value.value
             else:
                 serialized[key] = value
