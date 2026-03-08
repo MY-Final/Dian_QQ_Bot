@@ -77,7 +77,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:18080/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 30000, // 容器操作可能需要更长时间
   headers: {
     'Content-Type': 'application/json',

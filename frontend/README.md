@@ -41,7 +41,13 @@ cp .env.example .env
 Important variable:
 - `VITE_API_BASE_URL`: backend API base URL
 
-If your backend runs on port `18080`, use:
+Recommended (dev + docker proxy):
+
+```env
+VITE_API_BASE_URL=/api/v1
+```
+
+If you want direct backend access, use:
 
 ```env
 VITE_API_BASE_URL=http://127.0.0.1:18080/api/v1
