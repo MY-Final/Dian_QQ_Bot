@@ -135,13 +135,29 @@ class NapCatManager(BaseBotManager):
         instance_id = generate_instance_id()
         container_name = generate_container_name(protocol, instance_id)
 
-        # 端口分配逻辑
-        # HTTP 端口为主端口，如果没指定则自动分配
-        http_port = port_http if port_http is not None else await allocate_port()
-        # WebSocket 端口如果没指定则使用 HTTP+1
-        ws_port = port_ws if port_ws is not None else http_port + 1
-        # Web UI 端口（可选）
-        web_ui_port = port_web_ui
+        # 端口分配逻辑（带冲突检测）
+        http_port = await allocate_port(preferred_port=port_http)
+
+        if port_ws is not None:
+            ws_port = await allocate_port(
+                preferred_port=port_ws,
+                excluded_ports={http_port},
+            )
+        else:
+            try:
+                ws_port = await allocate_port(
+                    preferred_port=http_port + 1,
+                    excluded_ports={http_port},
+                )
+            except BotError:
+                ws_port = await allocate_port(excluded_ports={http_port})
+
+        web_ui_port: Optional[int] = None
+        if port_web_ui is not None:
+            web_ui_port = await allocate_port(
+                preferred_port=port_web_ui,
+                excluded_ports={http_port, ws_port},
+            )
 
         volume_path = generate_volume_path(instance_id, protocol)
 

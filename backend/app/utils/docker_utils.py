@@ -12,6 +12,7 @@
 
 import logging
 import platform
+import socket
 import uuid
 from pathlib import Path
 
@@ -58,6 +59,7 @@ def check_docker_status() -> dict:
             - message: str, 状态消息
     """
     import docker
+    from docker.errors import DockerException
 
     try:
         client = docker.from_env()
@@ -68,21 +70,21 @@ def check_docker_status() -> dict:
             "version": info.get("ServerVersion", "unknown"),
             "message": "Docker 运行正常",
         }
-    except docker.errors.DockerException as e:
-        logger.warning(f"Docker 不可用: {e}")
+    except DockerException as exc:
+        logger.warning("Docker 不可用: %s", exc)
         return {
             "running": False,
             "platform": platform.system().lower(),
             "version": None,
-            "message": f"Docker 未运行: {str(e)}",
+            "message": f"Docker 未运行: {str(exc)}",
         }
-    except Exception as e:
-        logger.warning(f"检查 Docker 状态时发生未知错误: {e}")
+    except Exception as exc:
+        logger.warning("检查 Docker 状态时发生未知错误: %s", exc)
         return {
             "running": False,
             "platform": platform.system().lower(),
             "version": None,
-            "message": f"检查 Docker 状态失败: {str(e)}",
+            "message": f"检查 Docker 状态失败: {str(exc)}",
         }
 
 
@@ -136,7 +138,6 @@ def get_docker_volume_bind(volume_path: Path) -> dict:
     Returns:
         dict: Docker 卷绑定配置
     """
-    import os
     import sys
     
     # 获取绝对路径
@@ -155,32 +156,125 @@ def get_docker_volume_bind(volume_path: Path) -> dict:
     return {host_path: {"bind": "/app/config", "mode": "rw"}}
 
 
-async def allocate_port() -> int:
-    """从配置的端口范围中分配可用端口。
+def _is_host_port_available(port: int) -> bool:
+    """检查主机端口是否可用。
+
+    Args:
+        port: 端口号
+
+    Returns:
+        bool: 端口是否可用
+    """
+    socket_handle = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    socket_handle.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    try:
+        socket_handle.bind(("0.0.0.0", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        socket_handle.close()
+
+
+def _get_docker_mapped_ports() -> set[int]:
+    """获取 Docker 已映射的主机端口。
+
+    Returns:
+        set[int]: 已被 Docker 占用的端口集合
+    """
+    import docker
+    from docker.errors import DockerException
+
+    ports: set[int] = set()
+    try:
+        client = docker.from_env()
+        containers = client.containers.list(all=True)
+        for container in containers:
+            container_ports = container.attrs.get("NetworkSettings", {}).get("Ports", {})
+            for bindings in container_ports.values():
+                if bindings is None:
+                    continue
+                for binding in bindings:
+                    host_port = binding.get("HostPort")
+                    if host_port and host_port.isdigit():
+                        ports.add(int(host_port))
+    except DockerException as exc:
+        logger.warning("读取 Docker 端口映射失败：%s", exc)
+
+    return ports
+
+
+async def _get_database_allocated_ports() -> set[int]:
+    """获取数据库中已分配的端口。
+
+    Returns:
+        set[int]: 已分配端口集合
+    """
+    from sqlalchemy import select
+
+    from app.database import get_session_maker
+    from app.models.db_models import BotInstanceDB
+
+    allocated_ports: set[int] = set()
+    try:
+        async with get_session_maker()() as session:
+            result = await session.execute(
+                select(BotInstanceDB.port, BotInstanceDB.port_web_ui, BotInstanceDB.port_ws)
+            )
+            for main_port, web_ui_port, ws_port in result.all():
+                allocated_ports.add(main_port)
+                if web_ui_port is not None:
+                    allocated_ports.add(web_ui_port)
+                if ws_port is not None:
+                    allocated_ports.add(ws_port)
+    except Exception:
+        logger.warning("读取数据库端口分配失败", exc_info=True)
+
+    return allocated_ports
+
+
+async def allocate_port(
+    preferred_port: int | None = None,
+    excluded_ports: set[int] | None = None,
+) -> int:
+    """分配可用端口。
+
+    Args:
+        preferred_port: 优先使用的端口（可选）
+        excluded_ports: 额外排除的端口集合
 
     Returns:
         int: 可用端口号
 
     Raises:
-        PortAllocationError: 端口范围内没有可用端口
-
-    Note:
-        这是一个简单实现。生产环境应该在数据库中跟踪已分配的端口以避免冲突。
+        PortAllocationError: 端口不可用时抛出
     """
-    import random
+    from app.core.exceptions import PortAllocationError
+
+    occupied_ports = _get_docker_mapped_ports()
+    occupied_ports.update(await _get_database_allocated_ports())
+    if excluded_ports:
+        occupied_ports.update(excluded_ports)
+
+    if preferred_port is not None:
+        if preferred_port in occupied_ports or not _is_host_port_available(preferred_port):
+            logger.error("指定端口不可用：%s", preferred_port)
+            raise PortAllocationError(preferred_port)
+        logger.debug("使用指定端口: %s", preferred_port)
+        return preferred_port
 
     port_range = range(settings.port_range_start, settings.port_range_end + 1)
-    available_ports = list(port_range)
+    for port in port_range:
+        if port in occupied_ports:
+            continue
+        if not _is_host_port_available(port):
+            continue
+        logger.debug("为新实例分配端口: %s", port)
+        return port
 
-    if not available_ports:
-        from app.core.exceptions import PortAllocationError
-
-        raise PortAllocationError(0)
-
-    selected_port = random.choice(available_ports)
-    logger.debug(f"为新实例分配端口: {selected_port}")
-
-    return selected_port
+    logger.error("端口范围 %s-%s 内无可用端口", settings.port_range_start, settings.port_range_end)
+    raise PortAllocationError(0)
 
 
 def format_container_env(
