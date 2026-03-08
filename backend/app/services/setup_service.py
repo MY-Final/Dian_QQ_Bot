@@ -16,6 +16,8 @@ from app.core.exceptions import (
     SetupError,
 )
 from app.database import Base, set_db_config
+from app.models.settings import SystemSetting  # noqa: F401
+from app.models.user import User  # noqa: F401
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -211,6 +213,8 @@ class SetupService:
         try:
             password_hash = hash_password(admin_password)
             async with temp_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+
                 user_result = await conn.execute(
                     text("SELECT id FROM users WHERE username = :username"),
                     {"username": admin_username},
@@ -303,6 +307,9 @@ class SetupService:
 
         if "InvalidPasswordError" in error_type or "password authentication failed" in error_text:
             return AdminCreationError("数据库认证失败，请检查数据库用户名或密码")
+
+        if "UndefinedTableError" in error_type or "relation \"system_settings\" does not exist" in error_text:
+            return AdminCreationError("数据库表未初始化，请先执行“初始化数据库表”步骤")
 
         if "ConnectionRefusedError" in error_type or "connect" in error_text.lower():
             return AdminCreationError("数据库连接失败，请检查地址、端口和网络可达性")
