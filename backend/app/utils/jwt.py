@@ -12,22 +12,8 @@ from jwt.exceptions import PyJWTError
 from app.core.config import settings
 
 
-# 使用一个固定的密钥（生产环境应该使用环境变量）
-# 为了安全，这里使用 settings 中的一个派生值
-def _get_secret_key() -> str:
-    """获取 JWT 密钥。
-    
-    Returns:
-        str: JWT 密钥字符串
-    """
-    # 使用数据库密码和其他信息生成一个派生密钥
-    # 生产环境应该使用专门的环境变量
-    base_key = getattr(settings, 'db_password', 'dian-qq-bot-secret-key-2026')
-    return f"dian-qq-bot-jwt-secret-{base_key}-2026"
-
-
 def create_access_token(
-    data: dict,
+    data: dict[str, object],
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """创建访问令牌。
@@ -49,8 +35,7 @@ def create_access_token(
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        # 默认 24 小时过期
-        expire = datetime.utcnow() + timedelta(hours=24)
+        expire = datetime.utcnow() + timedelta(hours=settings.access_token_expire_hours)
     
     # 添加 JWT 标准声明
     to_encode.update({
@@ -62,15 +47,15 @@ def create_access_token(
     # 编码 JWT
     encoded_jwt = jwt.encode(
         to_encode,
-        _get_secret_key(),
-        algorithm="HS256",
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
     )
     
     return encoded_jwt
 
 
 def create_refresh_token(
-    data: dict,
+    data: dict[str, object],
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """创建刷新令牌。
@@ -90,8 +75,7 @@ def create_refresh_token(
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        # 默认 7 天过期
-        expire = datetime.utcnow() + timedelta(days=7)
+        expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
     
     to_encode.update({
         "exp": expire,
@@ -101,14 +85,14 @@ def create_refresh_token(
     
     encoded_jwt = jwt.encode(
         to_encode,
-        _get_secret_key(),
-        algorithm="HS256",
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
     )
     
     return encoded_jwt
 
 
-def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
+def verify_token(token: str, token_type: str = "access") -> Optional[dict[str, object]]:
     """验证 JWT 令牌。
     
     Args:
@@ -125,8 +109,8 @@ def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
         # 解码 JWT
         payload = jwt.decode(
             token,
-            _get_secret_key(),
-            algorithms=["HS256"],
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
             options={"verify_exp": True},
         )
         
@@ -144,7 +128,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
         return None
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str) -> Optional[dict[str, object]]:
     """解码 JWT 令牌（不验证类型）。
     
     Args:
@@ -156,8 +140,8 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(
             token,
-            _get_secret_key(),
-            algorithms=["HS256"],
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
             options={"verify_exp": True},
         )
         return payload

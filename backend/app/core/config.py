@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     # 日志配置
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
 
+    # JWT 配置
+    jwt_secret_key: str = Field(
+        default="change-this-to-a-strong-secret-before-production",
+        env="JWT_SECRET_KEY",
+    )
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    access_token_expire_hours: int = Field(default=24, env="ACCESS_TOKEN_EXPIRE_HOURS")
+    refresh_token_expire_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

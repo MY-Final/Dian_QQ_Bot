@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.core.config import settings
 from app.models.user import User
 from app.utils.jwt import (
     create_access_token,
@@ -136,12 +137,12 @@ async def login(
                 "username": user.username,
                 "role": user.role,
             },
-            expires_delta=timedelta(hours=24),
+            expires_delta=timedelta(hours=settings.access_token_expire_hours),
         )
         
         refresh_token = create_refresh_token(
             data={"sub": str(user.id)},
-            expires_delta=timedelta(days=7),
+            expires_delta=timedelta(days=settings.refresh_token_expire_days),
         )
         
         logger.info(f"用户登录成功：username={username}, role={user.role}")
@@ -321,7 +322,7 @@ async def refresh_token(
         # 生成新的 access_token
         access_token = create_access_token(
             data={"sub": user_id},
-            expires_delta=timedelta(hours=24),
+            expires_delta=timedelta(hours=settings.access_token_expire_hours),
         )
         
         return JSONResponse(
