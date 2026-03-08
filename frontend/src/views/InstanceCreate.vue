@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { type InstanceCreate } from '@/api'
+import { getErrorMessage, imageApi, type ImageRepositoryResult, type InstanceCreate } from '@/api'
 import { useInstanceStore } from '../stores/instance'
 
 const router = useRouter()
@@ -21,6 +21,17 @@ const portWs = ref<number | null>(null)
 // NapCat 环境变量配置
 const napcatUid = ref<number | null>(1000)
 const napcatGid = ref<number | null>(1000)
+
+// 镜像配置
+const imageRegistry = ref('')
+const imageRepo = ref('mlikiowa/napcat-docker')
+const imageTag = ref('latest')
+const imageSearchQuery = ref('napcat')
+const imageSearchResults = ref<ImageRepositoryResult[]>([])
+const imageTags = ref<string[]>([])
+const searchingImages = ref(false)
+const loadingTags = ref(false)
+const pullingImage = ref(false)
 
 const loading = ref(false)
 const error = ref('')
@@ -42,9 +53,13 @@ const dockerCommandPreview = computed(() => {
   if (napcatUid.value !== null) envs.push(`-e NAPCAT_UID=${napcatUid.value}`)
   if (napcatGid.value !== null) envs.push(`-e NAPCAT_GID=${napcatGid.value}`)
   
+  const imageRef = imageRegistry.value
+    ? `${imageRegistry.value.replace(/\/$/, '')}/${imageRepo.value}:${imageTag.value}`
+    : `${imageRepo.value}:${imageTag.value}`
+
   return `docker run -d \\
   --name ${name.value || 'bot-name'} \\
-${envs.map(e => `  ${e} \\\n`).join('')}${ports.map(p => `  ${p} \\\n`).join('')}  mlikiowa/napcat-docker:latest`
+${envs.map(e => `  ${e} \\\n`).join('')}${ports.map(p => `  ${p} \\\n`).join('')}  ${imageRef}`
 })
 
 // 验证端口输入
@@ -67,8 +82,67 @@ const portErrors = computed(() => {
 
 // 表单是否有效
 const isValid = computed(() => {
-  return name.value && qqNumber.value && portErrors.value.length === 0
+  return name.value && qqNumber.value && imageRepo.value && imageTag.value && portErrors.value.length === 0
 })
+
+async function searchImages() {
+  if (!imageSearchQuery.value.trim()) {
+    return
+  }
+
+  searchingImages.value = true
+  try {
+    const response = await imageApi.search(imageSearchQuery.value.trim(), imageRegistry.value || undefined)
+    imageSearchResults.value = response.data.data || []
+  } catch (err) {
+    error.value = getErrorMessage(err, '搜索镜像失败')
+  } finally {
+    searchingImages.value = false
+  }
+}
+
+async function loadTags() {
+  if (!imageRepo.value.trim()) {
+    return
+  }
+
+  loadingTags.value = true
+  try {
+    const response = await imageApi.tags(imageRepo.value.trim(), imageRegistry.value || undefined)
+    imageTags.value = response.data.data?.tags || []
+    if (imageTags.value.length > 0 && !imageTags.value.includes(imageTag.value)) {
+      const firstTag = imageTags.value[0]
+      if (firstTag) {
+        imageTag.value = firstTag
+      }
+    }
+  } catch (err) {
+    error.value = getErrorMessage(err, '获取镜像版本失败')
+  } finally {
+    loadingTags.value = false
+  }
+}
+
+function useSearchResult(result: ImageRepositoryResult) {
+  imageRepo.value = result.name
+  void loadTags()
+}
+
+async function pullImage() {
+  if (!imageRepo.value.trim() || !imageTag.value.trim()) {
+    error.value = '请先选择镜像仓库和版本'
+    return
+  }
+
+  pullingImage.value = true
+  try {
+    await imageApi.pull(imageRepo.value.trim(), imageTag.value.trim(), imageRegistry.value || undefined)
+  } catch (err) {
+    error.value = getErrorMessage(err, '拉取镜像失败')
+  } finally {
+    pullingImage.value = false
+  }
+}
 
 async function handleSubmit() {
   if (!name.value || !qqNumber.value) {
@@ -93,6 +167,9 @@ async function handleSubmit() {
     // NapCat 配置（始终传递）
     napcat_uid: napcatUid.value !== null ? napcatUid.value : undefined,
     napcat_gid: napcatGid.value !== null ? napcatGid.value : undefined,
+    image_registry: imageRegistry.value || undefined,
+    image_repo: imageRepo.value || undefined,
+    image_tag: imageTag.value || undefined,
   }
   
   // 端口配置（只要有值就传递，不管是否勾选了自定义端口）
@@ -104,6 +181,30 @@ async function handleSubmit() {
   }
   if (portWebUi.value !== null && portWebUi.value !== undefined && portWebUi.value !== 0) {
     createData.port_web_ui = portWebUi.value
+  }
+
+  try {
+    await imageApi.ensure(
+      imageRepo.value.trim(),
+      imageTag.value.trim(),
+      imageRegistry.value || undefined,
+      false,
+    )
+  } catch {
+    const shouldPull = window.confirm('本地未找到镜像，是否立即拉取？')
+    if (!shouldPull) {
+      loading.value = false
+      error.value = '请先拉取镜像后再创建实例'
+      return
+    }
+
+    try {
+      await imageApi.pull(imageRepo.value.trim(), imageTag.value.trim(), imageRegistry.value || undefined)
+    } catch (pullErr) {
+      loading.value = false
+      error.value = getErrorMessage(pullErr, '拉取镜像失败，无法创建实例')
+      return
+    }
   }
 
   const result = await store.createInstance(createData)
@@ -194,6 +295,89 @@ function goBack() {
               placeholder="例如: 123456789"
               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
             />
+          </div>
+
+          <!-- 镜像配置 -->
+          <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-pink-600">镜像配置</label>
+              <p class="text-xs text-gray-500 mt-1">支持 Docker Hub 和自定义镜像仓库。</p>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Registry（可选）</label>
+                <input
+                  v-model="imageRegistry"
+                  type="text"
+                  placeholder="registry.example.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">仓库</label>
+                <input
+                  v-model="imageRepo"
+                  type="text"
+                  placeholder="mlikiowa/napcat-docker"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                  @blur="loadTags"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">版本</label>
+                <input
+                  v-model="imageTag"
+                  list="image-tag-options"
+                  type="text"
+                  placeholder="latest"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                />
+                <datalist id="image-tag-options">
+                  <option v-for="tag in imageTags" :key="tag" :value="tag"></option>
+                </datalist>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <input
+                v-model="imageSearchQuery"
+                type="text"
+                placeholder="搜索镜像，如 napcat"
+                class="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+              />
+              <button
+                type="button"
+                :disabled="searchingImages"
+                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                @click="searchImages"
+              >{{ searchingImages ? '搜索中...' : '搜索镜像' }}</button>
+              <button
+                type="button"
+                :disabled="loadingTags"
+                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                @click="loadTags"
+              >{{ loadingTags ? '加载中...' : '加载版本' }}</button>
+              <button
+                type="button"
+                :disabled="pullingImage"
+                class="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:opacity-50"
+                @click="pullImage"
+              >{{ pullingImage ? '拉取中...' : '拉取镜像' }}</button>
+            </div>
+
+            <div v-if="imageSearchResults.length > 0" class="max-h-40 overflow-auto rounded border border-gray-200 bg-white">
+              <button
+                v-for="item in imageSearchResults"
+                :key="item.name"
+                type="button"
+                class="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
+                @click="useSearchResult(item)"
+              >
+                <div class="text-sm font-medium text-gray-800">{{ item.name }}</div>
+                <div class="text-xs text-gray-500 truncate">{{ item.description || '暂无描述' }}</div>
+              </button>
+            </div>
           </div>
 
           <!-- 端口配置 -->

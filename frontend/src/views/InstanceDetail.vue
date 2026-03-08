@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getErrorMessage, instanceApi, type Instance } from '../api'
+import { getErrorMessage, imageApi, instanceApi, type Instance } from '../api'
 import { useInstanceStore } from '../stores/instance'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import Toast from '../components/ui/Toast.vue'
@@ -20,6 +20,10 @@ const loading = ref(true)
 const logsLoading = ref(false)
 const actionLoading = ref(false)
 const actionType = ref<'start' | 'stop' | 'restart' | null>(null)
+const imageActionLoading = ref(false)
+const imageRegistryInput = ref('')
+const imageRepoInput = ref('')
+const imageTagInput = ref('latest')
 
 // 实时日志相关
 const isRealtime = ref(false)
@@ -53,6 +57,33 @@ onMounted(async () => {
     toggleRealtime(true)
   }
 })
+
+watch(
+  () => instance.value,
+  (newInstance) => {
+    if (!newInstance) {
+      return
+    }
+
+    const repo = newInstance.image_repo || ''
+    if (repo.includes('/')) {
+      const parts = repo.split('/')
+      const firstPart = parts[0]
+      if (parts.length > 2 && firstPart && firstPart.includes('.')) {
+        imageRegistryInput.value = firstPart
+        imageRepoInput.value = parts.slice(1).join('/')
+      } else {
+        imageRegistryInput.value = ''
+        imageRepoInput.value = repo
+      }
+    } else {
+      imageRegistryInput.value = ''
+      imageRepoInput.value = repo
+    }
+    imageTagInput.value = newInstance.image_tag || 'latest'
+  },
+  { immediate: true },
+)
 
 onUnmounted(() => {
   stopRealtime()
@@ -231,6 +262,85 @@ async function restartInstance() {
       } finally {
         actionLoading.value = false
         actionType.value = null
+      }
+    },
+  })
+}
+
+async function updateImageVersion() {
+  if (!instance.value) return
+
+  imageActionLoading.value = true
+  try {
+    const response = await instanceApi.updateImage(instanceId.value, {
+      image_registry: imageRegistryInput.value || undefined,
+      image_repo: imageRepoInput.value.trim(),
+      image_tag: imageTagInput.value.trim(),
+      auto_pull: false,
+    })
+
+    if (response.data.success && response.data.data) {
+      instance.value = response.data.data
+      toast.success('镜像版本已更新')
+      return
+    }
+
+    toast.warning(response.data.message || '本地未找到镜像，准备拉取')
+  } catch {
+    const shouldPull = window.confirm('本地未找到镜像，是否立即拉取并更新？')
+    if (!shouldPull) {
+      imageActionLoading.value = false
+      return
+    }
+
+    try {
+      await imageApi.pull(
+        imageRepoInput.value.trim(),
+        imageTagInput.value.trim(),
+        imageRegistryInput.value || undefined,
+      )
+      const updateResponse = await instanceApi.updateImage(instanceId.value, {
+        image_registry: imageRegistryInput.value || undefined,
+        image_repo: imageRepoInput.value.trim(),
+        image_tag: imageTagInput.value.trim(),
+        auto_pull: false,
+      })
+      if (updateResponse.data.success && updateResponse.data.data) {
+        instance.value = updateResponse.data.data
+        toast.success('镜像已拉取并更新成功')
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, '镜像更新失败'))
+    }
+  } finally {
+    imageActionLoading.value = false
+  }
+}
+
+async function recreateWithImage() {
+  if (!instance.value) return
+
+  showConfirm({
+    title: '按当前镜像重建实例',
+    message: `将使用 ${instance.value.image_repo}:${instance.value.image_tag} 重建实例，容器会短暂中断。`,
+    type: 'warning',
+    confirmText: '重建',
+    action: async () => {
+      imageActionLoading.value = true
+      try {
+        const response = await instanceApi.recreate(instanceId.value, true)
+        if (response.data.success && response.data.data) {
+          instance.value = response.data.data
+          toast.success('实例重建成功')
+          await reloadLogs()
+          await store.fetchInstances(true)
+        } else {
+          toast.error(response.data.message || '实例重建失败')
+        }
+      } catch (err) {
+        toast.error(getErrorMessage(err, '实例重建失败'))
+      } finally {
+        imageActionLoading.value = false
       }
     },
   })
@@ -522,6 +632,52 @@ function clearLogs() {
           <div v-if="instance.description" class="mt-6 pt-4 border-t">
             <p class="text-xs text-gray-500 mb-1">描述</p>
             <p class="text-sm text-gray-700">{{ instance.description }}</p>
+          </div>
+
+          <div class="mt-6 pt-4 border-t space-y-3">
+            <div>
+              <p class="text-xs text-gray-500 mb-1">当前镜像</p>
+              <p class="text-sm font-medium text-gray-900 font-mono break-all">
+                {{ instance.image_repo }}:{{ instance.image_tag }}
+              </p>
+              <p v-if="instance.image_digest" class="text-xs text-gray-500 font-mono break-all mt-1">
+                {{ instance.image_digest }}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                v-model="imageRegistryInput"
+                type="text"
+                placeholder="registry（可选）"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-500"
+              />
+              <input
+                v-model="imageRepoInput"
+                type="text"
+                placeholder="镜像仓库"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-500"
+              />
+              <input
+                v-model="imageTagInput"
+                type="text"
+                placeholder="版本"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-500"
+              />
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                @click="updateImageVersion"
+                :disabled="imageActionLoading"
+                class="px-3 py-2 text-xs rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              >更新镜像版本</button>
+              <button
+                @click="recreateWithImage"
+                :disabled="imageActionLoading"
+                class="px-3 py-2 text-xs rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50"
+              >按镜像重建实例</button>
+            </div>
           </div>
 
           <!-- Actions -->

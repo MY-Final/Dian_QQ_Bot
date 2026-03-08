@@ -77,7 +77,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:18080/api/v1',
   timeout: 30000, // 容器操作可能需要更长时间
   headers: {
     'Content-Type': 'application/json',
@@ -127,6 +127,9 @@ export interface Instance {
   port_ws?: number
   volume_path: string
   description?: string
+  image_repo: string
+  image_tag: string
+  image_digest?: string
   created_at: string
   updated_at: string
 }
@@ -153,6 +156,32 @@ export interface InstanceCreate {
   // NapCat 环境变量配置
   napcat_uid?: number   // NAPCAT_UID 用户 ID
   napcat_gid?: number   // NAPCAT_GID 组 ID
+  image_registry?: string
+  image_repo?: string
+  image_tag?: string
+}
+
+export interface InstanceImageUpdate {
+  image_registry?: string
+  image_repo: string
+  image_tag: string
+  auto_pull?: boolean
+}
+
+export interface ImageRepositoryResult {
+  name: string
+  description: string
+  registry: string
+  is_official: boolean
+  star_count: number
+}
+
+export interface LocalImageResult {
+  id: string
+  tags: string[]
+  digests: string[]
+  size: number
+  created: string
 }
 
 // 系统初始化相关
@@ -243,6 +272,14 @@ export const instanceApi = {
   
   /** 删除实例 */
   delete: (id: string) => api.delete<ApiResponse<{ id: string }>>(`/instances/${id}`),
+
+  /** 更新实例镜像 */
+  updateImage: (id: string, data: InstanceImageUpdate) =>
+    api.patch<ApiResponse<Instance>>(`/instances/${id}/image`, data),
+
+  /** 按当前镜像重建实例 */
+  recreate: (id: string, autoPull: boolean = false) =>
+    api.post<ApiResponse<Instance>>(`/instances/${id}/recreate`, null, { params: { auto_pull: autoPull } }),
   
   /** 获取实例日志 */
   logs: (id: string, tail: number = 100, cursor: number = 0) =>
@@ -250,6 +287,46 @@ export const instanceApi = {
       `/instances/${id}/logs`,
       { params: { tail, cursor } }
     ),
+}
+
+/**
+ * 镜像管理 API
+ */
+export const imageApi = {
+  /** 搜索仓库 */
+  search: (query: string, registry?: string) =>
+    api.get<ApiResponse<ImageRepositoryResult[]>>('/images/search', {
+      params: { query, registry },
+    }),
+
+  /** 获取仓库标签 */
+  tags: (repository: string, registry?: string) =>
+    api.get<ApiResponse<{ tags: string[] }>>('/images/tags', {
+      params: { repository, registry },
+    }),
+
+  /** 拉取镜像 */
+  pull: (repository: string, tag: string, registry?: string) =>
+    api.post<ApiResponse<{ image_ref: string; id: string; digest?: string }>>('/images/pull', {
+      repository,
+      tag,
+      registry,
+    }),
+
+  /** 检查镜像可用 */
+  ensure: (repository: string, tag: string, registry?: string, allowPull: boolean = false) =>
+    api.post<ApiResponse<{ image_ref: string; available: boolean; pulled: boolean; digest?: string }>>(
+      '/images/ensure',
+      {
+        repository,
+        tag,
+        registry,
+        allow_pull: allowPull,
+      },
+    ),
+
+  /** 本地镜像列表 */
+  local: () => api.get<ApiResponse<LocalImageResult[]>>('/images/local'),
 }
 
 /**

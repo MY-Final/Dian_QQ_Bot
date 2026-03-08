@@ -448,6 +448,74 @@ class NapCatManager(BaseBotManager):
 
         logger.info(f"NapCat 实例已删除: instance_id={instance_id}")
 
+    async def recreate_with_image(self, instance_id: str, image_ref: str) -> InstanceResponse:
+        """使用指定镜像重建实例容器。
+
+        Args:
+            instance_id: 实例 ID
+            image_ref: 镜像引用
+
+        Returns:
+            InstanceResponse: 重建后的实例信息
+
+        Raises:
+            BotNotFoundError: 实例不存在时抛出
+            BotError: 重建失败时抛出
+        """
+        from app.database import get_session_maker
+        from sqlalchemy import select
+
+        async with get_session_maker()() as session:
+            result = await session.execute(select(BotInstanceDB).where(BotInstanceDB.id == instance_id))
+            db_instance = result.scalar_one_or_none()
+            if db_instance is None:
+                raise BotNotFoundError(instance_id)
+
+            container_name = db_instance.container_name
+            try:
+                existing_container = self.client.containers.get(container_name)
+                existing_container.stop(timeout=5)
+                existing_container.remove()
+            except NotFound:
+                logger.info("容器不存在，跳过删除: %s", container_name)
+            except DockerException as exc:
+                logger.error("移除旧容器失败: %s", exc, exc_info=True)
+                raise BotError(f"移除旧容器失败: {exc}") from exc
+
+            env = format_container_env(db_instance.qq_number, db_instance.id, db_instance.protocol)
+            ports_mapping = {
+                "3000/tcp": db_instance.port,
+            }
+            if db_instance.port_ws:
+                ports_mapping["3001/tcp"] = db_instance.port_ws
+            if db_instance.port_web_ui:
+                ports_mapping["6099/tcp"] = db_instance.port_web_ui
+
+            try:
+                self.client.containers.run(
+                    image=image_ref,
+                    name=container_name,
+                    ports=ports_mapping,
+                    volumes=get_docker_volume_bind(db_instance.volume_path),
+                    environment=env,
+                    detach=True,
+                    remove=False,
+                )
+            except DockerException as exc:
+                logger.error("重建容器失败: %s", exc, exc_info=True)
+                raise BotError(f"重建容器失败: {exc}") from exc
+
+            parsed_repo, parsed_tag = self._parse_image_reference(image_ref)
+            db_instance.status = InstanceStatus.RUNNING.value
+            db_instance.image_repo = parsed_repo
+            db_instance.image_tag = parsed_tag
+            db_instance.image_digest = self._resolve_image_digest(image_ref)
+            db_instance.updated_at = datetime.utcnow()
+            await session.commit()
+            await session.refresh(db_instance)
+
+            return self._db_to_response(db_instance)
+
     async def get_status(self, instance_id: str) -> InstanceStatus:
         """获取 NapCat Bot 实例状态。
 

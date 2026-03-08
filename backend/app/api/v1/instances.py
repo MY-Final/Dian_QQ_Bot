@@ -13,11 +13,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 
-from app.api.v1.dependencies import get_current_user, require_admin_user
+from app.api.v1.dependencies import get_current_user
 from app.core.exceptions import BotError, BotNotFoundError
 from app.managers.napcat import NapCatManager
-from app.models.instance import InstanceCreate
+from app.models.instance import InstanceCreate, InstanceImageUpdate
 from app.models.user import User
+from app.services.image_service import ImageService
 from app.services.instance_service import InstanceService
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ def get_instance_service() -> InstanceService:
         InstanceService: 实例服务对象
     """
     manager = NapCatManager()
-    return InstanceService(manager=manager)
+    image_service = ImageService()
+    return InstanceService(manager=manager, image_service=image_service)
 
 
 def success_response(data: Any = None, message: str = "操作成功") -> dict[str, Any]:
@@ -69,7 +71,7 @@ def error_response(message: str, code: int = 400) -> dict[str, Any]:
 async def create_instance(
     data: InstanceCreate,
     service: InstanceService = Depends(get_instance_service),
-    _current_user: User = Depends(require_admin_user),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """创建新的 NapCat Bot 实例。
 
@@ -179,7 +181,7 @@ async def get_instance(
 async def start_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
-    _current_user: User = Depends(require_admin_user),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """启动 Bot 实例。
 
@@ -218,7 +220,7 @@ async def start_instance(
 async def stop_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
-    _current_user: User = Depends(require_admin_user),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """停止 Bot 实例。
 
@@ -257,7 +259,7 @@ async def stop_instance(
 async def restart_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
-    _current_user: User = Depends(require_admin_user),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """重启 Bot 实例。
 
@@ -296,7 +298,7 @@ async def restart_instance(
 async def delete_instance(
     instance_id: str,
     service: InstanceService = Depends(get_instance_service),
-    _current_user: User = Depends(require_admin_user),
+    _current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """删除 Bot 实例。
 
@@ -323,6 +325,69 @@ async def delete_instance(
         )
     except BotError as exc:
         logger.error("API: 删除实例失败: %s", exc.message)
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=error_response(exc.message, status.HTTP_400_BAD_REQUEST),
+        )
+
+
+@router.patch(
+    "/{instance_id}/image",
+    summary="更新实例镜像",
+    description="更新实例镜像仓库与版本",
+)
+async def update_instance_image(
+    instance_id: str,
+    payload: InstanceImageUpdate,
+    service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    """更新实例镜像信息。"""
+    try:
+        updated_instance = await service.update_instance_image(
+            instance_id=instance_id,
+            image_registry=payload.image_registry,
+            image_repo=payload.image_repo,
+            image_tag=payload.image_tag,
+            auto_pull=payload.auto_pull,
+        )
+        return JSONResponse(content=success_response(data=updated_instance, message="镜像更新成功"))
+    except BotNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_response(exc.message, status.HTTP_404_NOT_FOUND),
+        )
+    except BotError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=error_response(exc.message, status.HTTP_400_BAD_REQUEST),
+        )
+
+
+@router.post(
+    "/{instance_id}/recreate",
+    summary="按镜像重建实例",
+    description="使用当前实例镜像版本重新创建容器",
+)
+async def recreate_instance(
+    instance_id: str,
+    auto_pull: bool = False,
+    service: InstanceService = Depends(get_instance_service),
+    _current_user: User = Depends(get_current_user),
+) -> JSONResponse:
+    """按实例镜像重建容器。"""
+    try:
+        recreated_instance = await service.recreate_instance_with_image(
+            instance_id=instance_id,
+            auto_pull=auto_pull,
+        )
+        return JSONResponse(content=success_response(data=recreated_instance, message="实例重建成功"))
+    except BotNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_response(exc.message, status.HTTP_404_NOT_FOUND),
+        )
+    except BotError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(exc.message, status.HTTP_400_BAD_REQUEST),
