@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     """应用生命周期处理器。
 
     在应用启动时初始化数据库，
@@ -126,7 +126,7 @@ app.include_router(images.router, prefix="/api/v1")  # 镜像管理路由
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     """根路径接口。
 
     Returns:
@@ -140,7 +140,7 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
     """健康检查接口。
 
     Returns:

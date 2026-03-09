@@ -16,12 +16,14 @@ import socket
 import uuid
 from pathlib import Path
 
+import docker
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-def get_docker_client():
+def get_docker_client() -> docker.DockerClient:
     """获取 Docker 客户端。
 
     根据当前操作系统自动选择合适的连接方式。
@@ -34,7 +36,6 @@ def get_docker_client():
     Raises:
         DockerConnectionError: 连接失败时抛出
     """
-    import docker
     from app.core.exceptions import DockerConnectionError
 
     try:
@@ -46,19 +47,18 @@ def get_docker_client():
         )
 
 
-def check_docker_status() -> dict:
+def check_docker_status() -> dict[str, object]:
     """检查 Docker 守护进程状态。
 
     支持 Windows 和 Linux 平台。
 
     Returns:
-        dict: Docker 状态信息，包含:
+        dict[str, object]: Docker 状态信息，包含:
             - running: bool, Docker 是否运行
             - platform: str, 操作系统平台
             - version: str, Docker 版本
             - message: str, 状态消息
     """
-    import docker
     from docker.errors import DockerException
 
     try:
@@ -125,7 +125,7 @@ def generate_volume_path(instance_id: str, protocol: str) -> Path:
     return volume_path.resolve()
 
 
-def get_docker_volume_bind(volume_path: Path) -> dict:
+def get_docker_volume_bind(volume_path: Path) -> dict[str, dict[str, str]]:
     """获取 Docker 卷挂载绑定配置。
 
     根据操作系统自动处理路径格式：
@@ -136,7 +136,7 @@ def get_docker_volume_bind(volume_path: Path) -> dict:
         volume_path: 主机上的卷路径
 
     Returns:
-        dict: Docker 卷绑定配置
+        dict[str, dict[str, str]]: Docker 卷绑定配置
     """
     import sys
     
@@ -183,7 +183,6 @@ def _get_docker_mapped_ports() -> set[int]:
     Returns:
         set[int]: 已被 Docker 占用的端口集合
     """
-    import docker
     from docker.errors import DockerException
 
     ports: set[int] = set()

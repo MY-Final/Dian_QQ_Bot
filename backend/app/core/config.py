@@ -16,46 +16,45 @@ class Settings(BaseSettings):
     """
 
     # 应用配置
-    app_name: str = Field(default="Dian QQ Bot", env="APP_NAME")
-    debug: bool = Field(default=False, env="DEBUG")
+    app_name: str = Field(default="Dian QQ Bot")
+    debug: bool = Field(default=False)
 
     # 服务器配置
-    host: str = Field(default="0.0.0.0", env="HOST")
-    port: int = Field(default=8000, env="PORT")
+    host: str = Field(default="0.0.0.0")
+    port: int = Field(default=8000)
 
     # CORS 配置
     cors_allowed_origins: str = Field(
         default=(
             "http://localhost:5173,http://127.0.0.1:5173,"
             "http://localhost:6173,http://127.0.0.1:6173"
-        ),
-        env="CORS_ALLOWED_ORIGINS",
+        )
     )
 
     # 路径配置
-    data_dir: Path = Field(default=Path("./data"), env="DATA_DIR")
-    instances_dir: Path = Field(default=Path("./data/instances"), env="INSTANCES_DIR")
-    logs_dir: Path = Field(default=Path("./logs"), env="LOGS_DIR")
+    data_dir: Path = Field(default=Path("./data"))
+    instances_dir: Path = Field(default=Path("./data/instances"))
+    logs_dir: Path = Field(default=Path("./logs"))
 
     # Docker 配置
     docker_socket: Path = Field(
-        default=Path("npipe:////./pipe/docker_engine"), env="DOCKER_SOCKET"
+        default=Path("npipe:////./pipe/docker_engine")
     )
-    container_prefix: str = Field(default="dian", env="CONTAINER_PREFIX")
+    container_prefix: str = Field(default="dian")
     napcat_image: str = Field(
-        default="mlikiowa/napcat-docker:latest", env="NAPCAT_IMAGE"
+        default="mlikiowa/napcat-docker:latest"
     )
 
     # 端口范围配置（适用于 Bot 实例）
-    port_range_start: int = Field(default=30000, env="PORT_RANGE_START")
-    port_range_end: int = Field(default=40000, env="PORT_RANGE_END")
+    port_range_start: int = Field(default=30000)
+    port_range_end: int = Field(default=40000)
 
     # 数据库配置（应用自身使用的数据库，存储 Bot 实例等数据）
-    db_host: str = Field(default="localhost", env="DB_HOST")
-    db_port: int = Field(default=5432, env="DB_PORT")
-    db_name: str = Field(default="dian_bot", env="DB_NAME")
-    db_user: str = Field(default="postgres", env="DB_USER")
-    db_password: str = Field(default="postgres", env="DB_PASSWORD")
+    db_host: str = Field(default="localhost")
+    db_port: int = Field(default=5432)
+    db_name: str = Field(default="dian_bot")
+    db_user: str = Field(default="postgres")
+    db_password: str = Field(default="postgres")
 
     @property
     def database_url(self) -> str:
@@ -63,25 +62,25 @@ class Settings(BaseSettings):
         return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
     # 日志配置
-    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_level: str = Field(default="INFO")
 
     # JWT 配置
     jwt_secret_key: str = Field(
-        default="change-this-to-a-strong-secret-before-production",
-        env="JWT_SECRET_KEY",
+        default="change-this-to-a-strong-secret-before-production"
     )
-    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
-    access_token_expire_hours: int = Field(default=24, env="ACCESS_TOKEN_EXPIRE_HOURS")
-    refresh_token_expire_days: int = Field(default=7, env="REFRESH_TOKEN_EXPIRE_DAYS")
+    jwt_algorithm: str = Field(default="HS256")
+    access_token_expire_hours: int = Field(default=24)
+    refresh_token_expire_days: int = Field(default=7)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # 忽略额外的配置项
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: object) -> None:
         """初始化配置并确保必要目录存在。"""
-        super().__init__(**kwargs)
+        super().__init__(**kwargs)  # type: ignore[arg-type]
         self._ensure_directories()
 
     def _ensure_directories(self) -> None:

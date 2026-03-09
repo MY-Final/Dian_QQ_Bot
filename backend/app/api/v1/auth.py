@@ -47,7 +47,8 @@ def success_response(data: dict[str, object] | None = None, message: str = "操�
     Returns:
         dict[str, object]: 统一格式的成功响应
     """
-    return {"success": True, "message": message, "data": data}
+    result: dict[str, object] = {"success": True, "message": message, "data": data}
+    return result
 
 
 def error_response(message: str, code: int = 400) -> dict[str, object]:
@@ -108,10 +109,16 @@ async def login(
         login_payload = await service.login(db, request.username, request.password)
         logger.info("用户登录成功：username=%s", request.username)
 
+        # Create response with explicit object type
+        response_data: dict[str, object] = {
+            "access_token": login_payload["access_token"],
+            "refresh_token": login_payload["refresh_token"],
+            "token_type": login_payload["token_type"],
+        }
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=success_response(
-                data=login_payload,
+                data=response_data,
                 message="登录成功",
             ),
         )
@@ -202,10 +209,15 @@ async def refresh_token(
     try:
         access_token_data = service.refresh_access_token(request.refresh_token)
 
+        # Convert to dict[str, object] for type compatibility
+        response_data: dict[str, object] = {
+            k: v for k, v in access_token_data.items()
+        }
+
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=success_response(
-                data=access_token_data,
+                data=response_data,
                 message="Token 刷新成功",
             ),
         )

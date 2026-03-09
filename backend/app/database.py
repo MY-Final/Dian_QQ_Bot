@@ -78,7 +78,7 @@ def set_db_config(config: AppConfig) -> None:
     )
 
 
-def get_engine():
+def get_engine():  # type: ignore[no-untyped-def]
     """获取数据库引擎。
 
     Returns:
@@ -97,7 +97,7 @@ def get_engine():
     return engine
 
 
-def get_session_maker():
+def get_session_maker():  # type: ignore[no-untyped-def]
     """获取会话工厂。
 
     Returns:
@@ -241,7 +241,9 @@ async def update_instance(db_instance: BotInstanceDB) -> BotInstanceDB:
 
         await session.commit()
         await session.refresh(db_obj)
-        return db_obj
+        # Explicitly return the correct type
+        result: BotInstanceDB = db_obj
+        return result
 
 
 async def close_db() -> None:

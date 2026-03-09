@@ -248,14 +248,14 @@ class NapCatManager(BaseBotManager):
 
         return self._db_to_response(db_instance)
 
-    def _resolve_image_digest(self, image_reference: str) -> Optional[str]:
+    def _resolve_image_digest(self, image_reference: str) -> str | None:
         """解析本地镜像摘要。
 
         Args:
             image_reference: 镜像引用
 
         Returns:
-            Optional[str]: 镜像摘要
+            str | None: 镜像摘要
         """
         try:
             image = self.client.images.get(image_reference)
@@ -572,15 +572,17 @@ class NapCatManager(BaseBotManager):
 
         try:
             container = self.client.containers.get(container_name)
-            logs = container.logs(tail=tail, timestamps=True).decode("utf-8")
-            return logs
+            logs_bytes = container.logs(tail=tail, timestamps=True)
+            logs_str: str = logs_bytes.decode("utf-8")
+            return logs_str
 
         except NotFound:
             logger.error(f"容器未找到: {container_name}")
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
             logger.error(f"获取容器日志失败: {e}", exc_info=True)
-            return f"获取日志失败: {e}"
+            error_msg: str = f"获取日志失败: {e}"
+            return error_msg
 
     async def list_instances(self) -> list[InstanceResponse]:
         """列出所有 NapCat Bot 实例。
@@ -591,7 +593,7 @@ class NapCatManager(BaseBotManager):
         """
         logger.debug("正在列出所有 NapCat 实例")
 
-        instances = []
+        instances: list[InstanceResponse] = []
         try:
             containers = self.client.containers.list(all=True)
             logger.info(f"找到 {len(containers)} 个容器")
@@ -610,7 +612,10 @@ class NapCatManager(BaseBotManager):
         Returns:
             tuple[str, str]: (镜像仓库, 镜像版本)
         """
-        if ":" in image_reference.rsplit("/", 1)[-1]:
+        last_part = image_reference.rsplit("/", 1)[-1]
+        if ":" in last_part:
             repository, tag = image_reference.rsplit(":", 1)
-            return repository, tag
-        return image_reference, "latest"
+            result: tuple[str, str] = (repository, tag)
+            return result
+        result_default: tuple[str, str] = (image_reference, "latest")
+        return result_default

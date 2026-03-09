@@ -211,8 +211,8 @@ class ImageService:
                 with urlopen(request, timeout=15) as response:
                     raw_data = response.read().decode("utf-8")
                     payload = json.loads(raw_data)
-                    tags = payload.get("tags", [])
-                    return sorted([str(tag) for tag in tags], reverse=True)
+                    registry_tags = payload.get("tags", [])
+                    return sorted([str(tag) for tag in registry_tags], reverse=True)
             except Exception as exc:
                 logger.error("读取自定义仓库 tags 失败", exc_info=True)
                 raise ImageServiceError(
@@ -229,12 +229,12 @@ class ImageService:
                 raw_data = response.read().decode("utf-8")
                 payload = json.loads(raw_data)
                 result_items = payload.get("results", [])
-                tags = [
+                hub_tags: list[str] = [
                     str(item.get("name", ""))
                     for item in result_items
                     if item.get("name")
                 ]
-                return tags
+                return hub_tags
         except Exception as exc:
             logger.error("读取镜像 tags 失败", exc_info=True)
             raise ImageServiceError("读取镜像版本失败，请稍后重试") from exc

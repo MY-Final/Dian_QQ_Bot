@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main():
+def main() -> None:
     """启动 FastAPI 应用服务器。"""
     logger.info("=" * 60)
     logger.info("Dian QQ Bot - 启动中...")

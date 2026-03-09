@@ -58,11 +58,11 @@ def is_docker_socket_available() -> bool:
         return False
 
 
-def get_platform_info() -> dict:
+def get_platform_info() -> dict[str, str]:
     """获取平台信息。
     
     Returns:
-        dict: 平台信息字典
+        dict[str, str]: 平台信息字典
     """
     import platform
     
