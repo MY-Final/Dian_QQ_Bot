@@ -4,8 +4,8 @@ import logging
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.db_config_manager import DatabaseConfig as AppConfig
@@ -294,6 +294,7 @@ class SetupService:
             raise SetupError("数据库配置保存失败，请检查 data 目录权限")
 
         set_db_config(app_db_config)
+
     @staticmethod
     def _map_admin_creation_error(exc: Exception) -> AdminCreationError:
         """将底层异常映射为可读的管理员创建异常。
@@ -310,7 +311,10 @@ class SetupService:
         if "InvalidPasswordError" in error_type or "password authentication failed" in error_text:
             return AdminCreationError("数据库认证失败，请检查数据库用户名或密码")
 
-        if "UndefinedTableError" in error_type or "relation \"system_settings\" does not exist" in error_text:
+        if (
+            "UndefinedTableError" in error_type
+            or 'relation "system_settings" does not exist' in error_text
+        ):
             return AdminCreationError("数据库表未初始化，请先执行“初始化数据库表”步骤")
 
         if "ConnectionRefusedError" in error_type or "connect" in error_text.lower():

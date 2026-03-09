@@ -159,7 +159,9 @@ async def get_instance(
     """
     try:
         instance_data = await service.get_instance(instance_id)
-        return JSONResponse(content=success_response(data=instance_data, message="获取实例详情成功"))
+        return JSONResponse(
+            content=success_response(data=instance_data, message="获取实例详情成功")
+        )
     except BotNotFoundError as exc:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -381,7 +383,9 @@ async def recreate_instance(
             instance_id=instance_id,
             auto_pull=auto_pull,
         )
-        return JSONResponse(content=success_response(data=recreated_instance, message="实例重建成功"))
+        return JSONResponse(
+            content=success_response(data=recreated_instance, message="实例重建成功")
+        )
     except BotNotFoundError as exc:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -3,8 +3,8 @@
 封装实例管理的核心业务逻辑，路由层只负责参数接收和响应转换。
 """
 
-import logging
 import asyncio
+import logging
 from datetime import datetime
 from enum import Enum
 
@@ -248,7 +248,9 @@ class InstanceService:
             logger.error("删除实例失败: instance_id=%s", instance_id, exc_info=True)
             raise BotError("删除实例失败，请稍后重试") from exc
 
-    async def get_instance_logs(self, instance_id: str, tail: int, cursor: int) -> dict[str, object]:
+    async def get_instance_logs(
+        self, instance_id: str, tail: int, cursor: int
+    ) -> dict[str, object]:
         """获取实例日志。
 
         Args:
@@ -360,8 +362,12 @@ class InstanceService:
                         raise BotNotFoundError(instance_id)
 
                 image_ref = f"{db_instance.image_repo}:{db_instance.image_tag}"
-                await self._image_service.ensure_image_available(image_ref=image_ref, allow_pull=auto_pull)
-                await self._manager.recreate_with_image(instance_id=instance_id, image_ref=image_ref)
+                await self._image_service.ensure_image_available(
+                    image_ref=image_ref, allow_pull=auto_pull
+                )
+                await self._manager.recreate_with_image(
+                    instance_id=instance_id, image_ref=image_ref
+                )
                 logger.info("实例按镜像重建成功: instance_id=%s, image=%s", instance_id, image_ref)
                 return await self.get_instance(instance_id)
         except BotNotFoundError:

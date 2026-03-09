@@ -34,7 +34,10 @@ class DatabaseConfig:
     @property
     def database_url(self) -> str:
         """构建数据库连接 URL。"""
-        return f"postgresql+asyncpg://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return (
+            f"postgresql+asyncpg://{self.username}:{self.password}"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
 
     def save(self) -> bool:
         """保存配置到文件。
@@ -86,9 +89,7 @@ class DatabaseConfig:
                 password=config_data.get("password", "postgres"),
             )
 
-            logger.info(
-                f"数据库配置已加载：{config.host}:{config.port}/{config.database}"
-            )
+            logger.info(f"数据库配置已加载：{config.host}:{config.port}/{config.database}")
             return config
         except Exception as e:
             logger.error(f"加载数据库配置失败：{e}")

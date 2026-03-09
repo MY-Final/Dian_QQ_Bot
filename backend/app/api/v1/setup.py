@@ -1,7 +1,6 @@
 """系统初始化 API 路由模块。"""
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse

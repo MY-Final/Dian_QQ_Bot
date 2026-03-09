@@ -37,13 +37,9 @@ class Settings(BaseSettings):
     logs_dir: Path = Field(default=Path("./logs"))
 
     # Docker 配置
-    docker_socket: Path = Field(
-        default=Path("npipe:////./pipe/docker_engine")
-    )
+    docker_socket: Path = Field(default=Path("npipe:////./pipe/docker_engine"))
     container_prefix: str = Field(default="dian")
-    napcat_image: str = Field(
-        default="mlikiowa/napcat-docker:latest"
-    )
+    napcat_image: str = Field(default="mlikiowa/napcat-docker:latest")
 
     # 端口范围配置（适用于 Bot 实例）
     port_range_start: int = Field(default=30000)
@@ -59,15 +55,16 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """构建数据库连接 URL（应用自身使用的数据库）。"""
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        return (
+            f"postgresql+asyncpg://{self.db_user}:{self.db_password}"
+            f"@{self.db_host}:{self.db_port}/{self.db_name}"
+        )
 
     # 日志配置
     log_level: str = Field(default="INFO")
 
     # JWT 配置
-    jwt_secret_key: str = Field(
-        default="change-this-to-a-strong-secret-before-production"
-    )
+    jwt_secret_key: str = Field(default="change-this-to-a-strong-secret-before-production")
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_hours: int = Field(default=24)
     refresh_token_expire_days: int = Field(default=7)
@@ -96,11 +93,7 @@ class Settings(BaseSettings):
         Returns:
             list[str]: 允许跨域访问的来源
         """
-        return [
-            origin.strip()
-            for origin in self.cors_allowed_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 # 全局配置单例

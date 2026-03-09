@@ -37,7 +37,9 @@ def get_auth_service() -> AuthService:
     return AuthService()
 
 
-def success_response(data: dict[str, object] | None = None, message: str = "操作成功") -> dict[str, object]:
+def success_response(
+    data: dict[str, object] | None = None, message: str = "操作成功"
+) -> dict[str, object]:
     """生成成功响应。
 
     Args:
@@ -210,9 +212,7 @@ async def refresh_token(
         access_token_data = service.refresh_access_token(request.refresh_token)
 
         # Convert to dict[str, object] for type compatibility
-        response_data: dict[str, object] = {
-            k: v for k, v in access_token_data.items()
-        }
+        response_data: dict[str, object] = {k: v for k, v in access_token_data.items()}
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -231,7 +231,9 @@ async def refresh_token(
         logger.error("刷新 token 失败", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response("刷新 token 失败，请稍后重试", status.HTTP_500_INTERNAL_SERVER_ERROR),
+            content=error_response(
+                "刷新 token 失败，请稍后重试", status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
         )
 
 
@@ -277,5 +279,7 @@ async def get_current_user(
         logger.error("获取用户信息失败", exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response("获取用户信息失败，请稍后重试", status.HTTP_500_INTERNAL_SERVER_ERROR),
+            content=error_response(
+                "获取用户信息失败，请稍后重试", status.HTTP_500_INTERNAL_SERVER_ERROR
+            ),
         )

@@ -7,11 +7,16 @@
 import logging
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app.core.db_config_manager import DatabaseConfig as AppConfig
-from app.models.db_models import BotInstanceDB, Base
+from app.models.db_models import Base, BotInstanceDB
 
 logger = logging.getLogger(__name__)
 
@@ -145,9 +150,7 @@ async def init_db() -> None:
     """
     # 检查是否已配置数据库
     if not AppConfig.is_configured():
-        logger.warning(
-            "数据库配置文件不存在，跳过初始化。请完成 Setup 向导配置数据库。"
-        )
+        logger.warning("数据库配置文件不存在，跳过初始化。请完成 Setup 向导配置数据库。")
         return
 
     engine = get_engine()
@@ -168,7 +171,8 @@ async def _ensure_runtime_schema(conn: AsyncConnection) -> None:
         text(
             """
             ALTER TABLE bot_instances
-            ADD COLUMN IF NOT EXISTS image_repo VARCHAR(255) NOT NULL DEFAULT 'mlikiowa/napcat-docker'
+            ADD COLUMN IF NOT EXISTS image_repo VARCHAR(255) NOT NULL
+            DEFAULT 'mlikiowa/napcat-docker'
             """
         )
     )

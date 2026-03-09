@@ -12,7 +12,6 @@ from docker.errors import DockerException, NotFound
 
 from app.core.config import settings
 from app.core.exceptions import (
-    BotAlreadyExistsError,
     BotDeleteError,
     BotError,
     BotNotFoundError,
@@ -23,12 +22,7 @@ from app.core.exceptions import (
 from app.database import save_instance, update_instance
 from app.managers.base import BaseBotManager
 from app.models.db_models import BotInstanceDB
-from app.models.instance import (
-    InstanceCreate,
-    InstanceResponse,
-    InstanceStatus,
-    ProtocolType,
-)
+from app.models.instance import InstanceResponse, InstanceStatus, ProtocolType
 from app.utils.docker_utils import (
     allocate_port,
     format_container_env,
@@ -80,7 +74,8 @@ class NapCatManager(BaseBotManager):
 
         """
         logger.info(
-            f"Converting DB to response: id={db_instance.id}, port_web_ui={db_instance.port_web_ui}, port_ws={db_instance.port_ws}"
+            f"Converting DB to response: id={db_instance.id}, "
+            f"port_web_ui={db_instance.port_web_ui}, port_ws={db_instance.port_ws}"
         )
 
         return InstanceResponse(
@@ -220,7 +215,7 @@ class NapCatManager(BaseBotManager):
 
         # 同步创建容器，确保结果可追踪
         try:
-            container = self.client.containers.run(
+            self.client.containers.run(
                 image=image_reference,
                 name=container_name,
                 ports=ports_mapping,
@@ -280,9 +275,10 @@ class NapCatManager(BaseBotManager):
             BotStartError: 如果启动失败
 
         """
-        from app.database import get_session_maker
         from sqlalchemy import select
-        
+
+        from app.database import get_session_maker
+
         logger.info(f"正在启动 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
@@ -305,10 +301,10 @@ class NapCatManager(BaseBotManager):
                 select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
             )
             db_instance = result.scalar_one_or_none()
-            
+
             if not db_instance:
                 raise BotNotFoundError(instance_id)
-            
+
             # 更新状态
             db_instance.status = InstanceStatus.RUNNING.value
             db_instance.updated_at = datetime.utcnow()
@@ -331,9 +327,10 @@ class NapCatManager(BaseBotManager):
             BotStopError: 如果停止失败
 
         """
-        from app.database import get_session_maker
         from sqlalchemy import select
-        
+
+        from app.database import get_session_maker
+
         logger.info(f"正在停止 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
@@ -356,10 +353,10 @@ class NapCatManager(BaseBotManager):
                 select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
             )
             db_instance = result.scalar_one_or_none()
-            
+
             if not db_instance:
                 raise BotNotFoundError(instance_id)
-            
+
             # 更新状态
             db_instance.status = InstanceStatus.STOPPED.value
             db_instance.updated_at = datetime.utcnow()
@@ -382,9 +379,10 @@ class NapCatManager(BaseBotManager):
             BotError: 如果重启失败
 
         """
-        from app.database import get_session_maker
         from sqlalchemy import select
-        
+
+        from app.database import get_session_maker
+
         logger.info(f"正在重启 NapCat 实例：instance_id={instance_id}")
 
         container_name = generate_container_name("napcat", instance_id)
@@ -407,10 +405,10 @@ class NapCatManager(BaseBotManager):
                 select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
             )
             db_instance = result.scalar_one_or_none()
-            
+
             if not db_instance:
                 raise BotNotFoundError(instance_id)
-            
+
             # 更新状态
             db_instance.status = InstanceStatus.RUNNING.value
             db_instance.updated_at = datetime.utcnow()
@@ -462,11 +460,14 @@ class NapCatManager(BaseBotManager):
             BotNotFoundError: 实例不存在时抛出
             BotError: 重建失败时抛出
         """
-        from app.database import get_session_maker
         from sqlalchemy import select
 
+        from app.database import get_session_maker
+
         async with get_session_maker()() as session:
-            result = await session.execute(select(BotInstanceDB).where(BotInstanceDB.id == instance_id))
+            result = await session.execute(
+                select(BotInstanceDB).where(BotInstanceDB.id == instance_id)
+            )
             db_instance = result.scalar_one_or_none()
             if db_instance is None:
                 raise BotNotFoundError(instance_id)
@@ -602,6 +603,7 @@ class NapCatManager(BaseBotManager):
             return instances
 
         return instances
+
     @staticmethod
     def _parse_image_reference(image_reference: str) -> tuple[str, str]:
         """解析镜像引用为仓库和版本。

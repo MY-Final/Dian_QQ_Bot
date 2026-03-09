@@ -7,13 +7,13 @@ import logging
 import sys
 from pathlib import Path
 
-import uvicorn
-
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from app.core.config import settings
+import uvicorn  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
 
 # 配置日志
 logging.basicConfig(
@@ -37,7 +37,7 @@ def main() -> None:
     logger.info(f"日志级别：{settings.log_level}")
     logger.info("=" * 60)
     logger.info("点点在看着你呢～ 💕")
-    
+
     uvicorn.run(
         "app.main:app",
         host=settings.host,

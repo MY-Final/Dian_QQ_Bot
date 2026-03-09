@@ -10,11 +10,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import instances
-from app.api.v1 import system
-from app.api.v1 import setup  # 新增：系统初始化路由
 from app.api.v1 import auth  # 新增：认证路由
-from app.api.v1 import images
+from app.api.v1 import setup  # 新增：系统初始化路由
+from app.api.v1 import images, instances, system
 from app.core.config import settings
 from app.database import close_db, init_db
 

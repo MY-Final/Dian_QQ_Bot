@@ -101,16 +101,12 @@ class AuthService:
         Raises:
             UserAlreadyExistsError: 用户名或邮箱重复时抛出
         """
-        existing_user_result = await db.execute(
-            select(User).where(User.username == username)
-        )
+        existing_user_result = await db.execute(select(User).where(User.username == username))
         existing_user = existing_user_result.scalar_one_or_none()
         if existing_user is not None:
             raise UserAlreadyExistsError("用户名已存在")
 
-        existing_email_result = await db.execute(
-            select(User).where(User.email == email)
-        )
+        existing_email_result = await db.execute(select(User).where(User.email == email))
         existing_email = existing_email_result.scalar_one_or_none()
         if existing_email is not None:
             raise UserAlreadyExistsError("邮箱已被使用")

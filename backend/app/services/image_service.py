@@ -19,9 +19,7 @@ from app.core.exceptions import (
 logger = logging.getLogger(__name__)
 
 DOCKER_HUB_SEARCH_URL = "https://hub.docker.com/v2/search/repositories/"
-DOCKER_HUB_TAGS_URL_TEMPLATE = (
-    "https://hub.docker.com/v2/repositories/{repository}/tags"
-)
+DOCKER_HUB_TAGS_URL_TEMPLATE = "https://hub.docker.com/v2/repositories/{repository}/tags"
 DEFAULT_PAGE_SIZE = 20
 
 
@@ -51,9 +49,7 @@ class ImageService:
         return self._client
 
     @staticmethod
-    def build_image_ref(
-        repository: str, tag: str, registry: Optional[str] = None
-    ) -> str:
+    def build_image_ref(repository: str, tag: str, registry: Optional[str] = None) -> str:
         """构建镜像引用。
 
         Args:
@@ -189,9 +185,7 @@ class ImageService:
             logger.error("搜索镜像仓库失败", exc_info=True)
             raise ImageServiceError("搜索镜像仓库失败，请稍后重试") from exc
 
-    async def list_tags(
-        self, repository: str, registry: Optional[str] = None
-    ) -> list[str]:
+    async def list_tags(self, repository: str, registry: Optional[str] = None) -> list[str]:
         """获取镜像版本列表。
 
         Args:
@@ -215,9 +209,7 @@ class ImageService:
                     return sorted([str(tag) for tag in registry_tags], reverse=True)
             except Exception as exc:
                 logger.error("读取自定义仓库 tags 失败", exc_info=True)
-                raise ImageServiceError(
-                    "读取自定义仓库 tags 失败，请检查仓库地址与权限"
-                ) from exc
+                raise ImageServiceError("读取自定义仓库 tags 失败，请检查仓库地址与权限") from exc
 
         encoded_repository = quote(repository, safe="/")
         request = Request(
@@ -230,18 +222,14 @@ class ImageService:
                 payload = json.loads(raw_data)
                 result_items = payload.get("results", [])
                 hub_tags: list[str] = [
-                    str(item.get("name", ""))
-                    for item in result_items
-                    if item.get("name")
+                    str(item.get("name", "")) for item in result_items if item.get("name")
                 ]
                 return hub_tags
         except Exception as exc:
             logger.error("读取镜像 tags 失败", exc_info=True)
             raise ImageServiceError("读取镜像版本失败，请稍后重试") from exc
 
-    async def ensure_image_available(
-        self, image_ref: str, allow_pull: bool
-    ) -> dict[str, object]:
+    async def ensure_image_available(self, image_ref: str, allow_pull: bool) -> dict[str, object]:
         """确保镜像可用。
 
         Args:
@@ -276,9 +264,7 @@ class ImageService:
             "digest": pull_result.get("digest"),
         }
 
-    async def remove_local_image(
-        self, image_ref: str, force: bool = False
-    ) -> dict[str, object]:
+    async def remove_local_image(self, image_ref: str, force: bool = False) -> dict[str, object]:
         """删除本地镜像。
 
         Args:
@@ -299,7 +285,5 @@ class ImageService:
             logger.error("删除镜像失败，镜像不存在: image=%s", image_ref, exc_info=True)
             raise ImageNotFoundError(image_ref) from exc
         except DockerException as exc:
-            logger.error(
-                "删除镜像失败: image=%s, force=%s", image_ref, force, exc_info=True
-            )
+            logger.error("删除镜像失败: image=%s, force=%s", image_ref, force, exc_info=True)
             raise ImageDeleteError(image_ref, str(exc)) from exc

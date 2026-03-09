@@ -42,9 +42,7 @@ def get_docker_client() -> docker.DockerClient:
         return docker.from_env()
     except Exception as e:
         logger.error(f"连接 Docker 失败: {e}", exc_info=True)
-        raise DockerConnectionError(
-            "无法连接到 Docker 守护进程，请确保 Docker Desktop 已启动"
-        )
+        raise DockerConnectionError("无法连接到 Docker 守护进程，请确保 Docker Desktop 已启动")
 
 
 def check_docker_status() -> dict[str, object]:
@@ -139,20 +137,20 @@ def get_docker_volume_bind(volume_path: Path) -> dict[str, dict[str, str]]:
         dict[str, dict[str, str]]: Docker 卷绑定配置
     """
     import sys
-    
+
     # 获取绝对路径
     host_path = str(volume_path.resolve())
-    
+
     # Windows 特殊处理
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         # 将反斜杠转换为正斜杠
-        host_path = host_path.replace('\\', '/')
-        
+        host_path = host_path.replace("\\", "/")
+
         # 处理盘符 (C: -> /c)
-        if len(host_path) > 1 and host_path[1] == ':':
+        if len(host_path) > 1 and host_path[1] == ":":
             drive = host_path[0].lower()
             host_path = f"/{drive}{host_path[2:]}"
-    
+
     return {host_path: {"bind": "/app/config", "mode": "rw"}}
 
 
