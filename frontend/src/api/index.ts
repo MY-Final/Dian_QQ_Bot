@@ -327,6 +327,15 @@ export const imageApi = {
 
   /** 本地镜像列表 */
   local: () => api.get<ApiResponse<LocalImageResult[]>>('/images/local'),
+
+  /** 删除本地镜像 */
+  removeLocal: (imageRef: string, force: boolean = false) =>
+    api.delete<ApiResponse<{ image_ref: string; removed: boolean; force: boolean }>>(
+      '/images/local',
+      {
+        params: { image_ref: imageRef, force },
+      },
+    ),
 }
 
 /**

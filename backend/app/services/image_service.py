@@ -9,7 +9,12 @@ from urllib.request import Request, urlopen
 import docker
 from docker.errors import DockerException, ImageNotFound
 
-from app.core.exceptions import ImageNotFoundError, ImagePullError, ImageServiceError
+from app.core.exceptions import (
+    ImageDeleteError,
+    ImageNotFoundError,
+    ImagePullError,
+    ImageServiceError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -270,3 +275,31 @@ class ImageService:
             "pulled": True,
             "digest": pull_result.get("digest"),
         }
+
+    async def remove_local_image(
+        self, image_ref: str, force: bool = False
+    ) -> dict[str, object]:
+        """删除本地镜像。
+
+        Args:
+            image_ref: 镜像引用（repository:tag 或 image id）
+            force: 是否强制删除
+
+        Returns:
+            dict[str, object]: 删除结果
+
+        Raises:
+            ImageNotFoundError: 镜像不存在时抛出
+            ImageDeleteError: 删除失败时抛出
+        """
+        try:
+            self.client.images.remove(image=image_ref, force=force, noprune=False)
+            return {"image_ref": image_ref, "removed": True, "force": force}
+        except ImageNotFound as exc:
+            logger.error("删除镜像失败，镜像不存在: image=%s", image_ref, exc_info=True)
+            raise ImageNotFoundError(image_ref) from exc
+        except DockerException as exc:
+            logger.error(
+                "删除镜像失败: image=%s, force=%s", image_ref, force, exc_info=True
+            )
+            raise ImageDeleteError(image_ref, str(exc)) from exc

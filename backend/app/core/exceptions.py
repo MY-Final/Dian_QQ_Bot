@@ -162,3 +162,12 @@ class ImageNotFoundError(ImageServiceError):
     def __init__(self, image_ref: str) -> None:
         super().__init__(f"镜像未找到: {image_ref}")
         self.image_ref = image_ref
+
+
+class ImageDeleteError(ImageServiceError):
+    """镜像删除失败异常。"""
+
+    def __init__(self, image_ref: str, detail: str) -> None:
+        super().__init__(f"删除镜像失败: {image_ref} ({detail})")
+        self.image_ref = image_ref
+        self.detail = detail
