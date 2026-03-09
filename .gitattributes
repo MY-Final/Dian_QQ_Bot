@@ -1,0 +1,5 @@
+* text=auto
+
+# Ensure consistent line endings across platforms (CI runs on Linux).
+*.py text eol=lf
+*.pyi text eol=lf
