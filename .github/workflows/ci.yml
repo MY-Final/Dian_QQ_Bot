@@ -101,42 +101,23 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Docker metadata (backend)
-      id: meta_backend
+    - name: Docker metadata (single image)
+      id: meta_app
       uses: docker/metadata-action@v5
       with:
-        images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend
-        tags: |
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=semver,pattern={{version}}
-          type=sha,format=short
-
-    - name: Docker metadata (frontend)
-      id: meta_frontend
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-frontend
+        images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot
         tags: |
           type=raw,value=latest,enable={{is_default_branch}}
           type=semver,pattern={{version}}
           type=sha,format=short
     
-    - name: Build and push backend
+    - name: Build and push single image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./Dockerfile.backend
+        file: ./Dockerfile
         push: true
-        tags: ${{ steps.meta_backend.outputs.tags }}
-        labels: ${{ steps.meta_backend.outputs.labels }}
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend:buildcache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend:buildcache,mode=max
-    
-    - name: Build and push frontend
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.frontend
-        push: true
-        tags: ${{ steps.meta_frontend.outputs.tags }}
-        labels: ${{ steps.meta_frontend.outputs.labels }}
+        tags: ${{ steps.meta_app.outputs.tags }}
+        labels: ${{ steps.meta_app.outputs.labels }}
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot:buildcache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot:buildcache,mode=max
