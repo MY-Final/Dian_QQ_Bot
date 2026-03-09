@@ -3,6 +3,7 @@ name: CI/CD
 on:
   push:
     branches: [ main, develop ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
 
@@ -86,7 +87,7 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     
     steps:
     - uses: actions/checkout@v4
@@ -99,6 +100,26 @@ jobs:
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Docker metadata (backend)
+      id: meta_backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend
+        tags: |
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=semver,pattern={{version}}
+          type=sha,format=short
+
+    - name: Docker metadata (frontend)
+      id: meta_frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-frontend
+        tags: |
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=semver,pattern={{version}}
+          type=sha,format=short
     
     - name: Build and push backend
       uses: docker/build-push-action@v5
@@ -106,14 +127,16 @@ jobs:
         context: .
         file: ./Dockerfile.backend
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend:latest
+        tags: ${{ steps.meta_backend.outputs.tags }}
+        labels: ${{ steps.meta_backend.outputs.labels }}
         cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend:buildcache
         cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-backend:buildcache,mode=max
     
     - name: Build and push frontend
       uses: docker/build-push-action@v5
       with:
-        context: ./frontend
+        context: .
         file: ./Dockerfile.frontend
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot-frontend:latest
+        tags: ${{ steps.meta_frontend.outputs.tags }}
+        labels: ${{ steps.meta_frontend.outputs.labels }}
