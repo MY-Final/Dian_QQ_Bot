@@ -14,7 +14,9 @@ from app.core.exceptions import ImageNotFoundError, ImagePullError, ImageService
 logger = logging.getLogger(__name__)
 
 DOCKER_HUB_SEARCH_URL = "https://hub.docker.com/v2/search/repositories/"
-DOCKER_HUB_TAGS_URL_TEMPLATE = "https://hub.docker.com/v2/repositories/{repository}/tags"
+DOCKER_HUB_TAGS_URL_TEMPLATE = (
+    "https://hub.docker.com/v2/repositories/{repository}/tags"
+)
 DEFAULT_PAGE_SIZE = 20
 
 
@@ -44,7 +46,9 @@ class ImageService:
         return self._client
 
     @staticmethod
-    def build_image_ref(repository: str, tag: str, registry: Optional[str] = None) -> str:
+    def build_image_ref(
+        repository: str, tag: str, registry: Optional[str] = None
+    ) -> str:
         """构建镜像引用。
 
         Args:
@@ -180,7 +184,9 @@ class ImageService:
             logger.error("搜索镜像仓库失败", exc_info=True)
             raise ImageServiceError("搜索镜像仓库失败，请稍后重试") from exc
 
-    async def list_tags(self, repository: str, registry: Optional[str] = None) -> list[str]:
+    async def list_tags(
+        self, repository: str, registry: Optional[str] = None
+    ) -> list[str]:
         """获取镜像版本列表。
 
         Args:
@@ -204,9 +210,11 @@ class ImageService:
                     return sorted([str(tag) for tag in tags], reverse=True)
             except Exception as exc:
                 logger.error("读取自定义仓库 tags 失败", exc_info=True)
-                raise ImageServiceError("读取自定义仓库 tags 失败，请检查仓库地址与权限") from exc
+                raise ImageServiceError(
+                    "读取自定义仓库 tags 失败，请检查仓库地址与权限"
+                ) from exc
 
-        encoded_repository = quote(repository, safe="")
+        encoded_repository = quote(repository, safe="/")
         request = Request(
             f"{DOCKER_HUB_TAGS_URL_TEMPLATE.format(repository=encoded_repository)}?page_size=100",
             method="GET",
@@ -216,13 +224,19 @@ class ImageService:
                 raw_data = response.read().decode("utf-8")
                 payload = json.loads(raw_data)
                 result_items = payload.get("results", [])
-                tags = [str(item.get("name", "")) for item in result_items if item.get("name")]
+                tags = [
+                    str(item.get("name", ""))
+                    for item in result_items
+                    if item.get("name")
+                ]
                 return tags
         except Exception as exc:
             logger.error("读取镜像 tags 失败", exc_info=True)
             raise ImageServiceError("读取镜像版本失败，请稍后重试") from exc
 
-    async def ensure_image_available(self, image_ref: str, allow_pull: bool) -> dict[str, object]:
+    async def ensure_image_available(
+        self, image_ref: str, allow_pull: bool
+    ) -> dict[str, object]:
         """确保镜像可用。
 
         Args:

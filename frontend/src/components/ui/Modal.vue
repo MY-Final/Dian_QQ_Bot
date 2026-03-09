@@ -14,7 +14,7 @@ const emit = defineEmits<{
   <Teleport to="body">
     <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-gray-900/30" @click="emit('close')"></div>
-      <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+      <div class="relative bg-white rounded-3xl shadow-xl w-full max-w-6xl overflow-hidden">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div>

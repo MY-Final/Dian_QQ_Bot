@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { getErrorMessage, imageApi, type ImageRepositoryResult, type InstanceCreate } from '@/api'
 import { useInstanceStore } from '../stores/instance'
@@ -10,7 +10,7 @@ const store = useInstanceStore()
 // 基本信息
 const name = ref('')
 const qqNumber = ref('')
-const protocol = ref('napcat')
+const protocol = ref<'napcat' | 'llonebot' | 'custom'>('napcat')
 const description = ref('')
 
 // 端口配置（对应截图中的字段）
@@ -29,9 +29,14 @@ const imageTag = ref('latest')
 const imageSearchQuery = ref('napcat')
 const imageSearchResults = ref<ImageRepositoryResult[]>([])
 const imageTags = ref<string[]>([])
+const imageTagSearchQuery = ref('')
 const searchingImages = ref(false)
 const loadingTags = ref(false)
 const pullingImage = ref(false)
+const showRepoDropdown = ref(false)
+const showTagDropdown = ref(false)
+const showImageAdvanced = ref(false)
+const imagePickerRef = ref<HTMLElement | null>(null)
 
 const loading = ref(false)
 const error = ref('')
@@ -41,6 +46,55 @@ const protocolOptions = [
   { value: 'llonebot', label: 'LLOneBot' },
   { value: 'custom', label: '自定义' },
 ]
+
+interface ImageOption {
+  name: string
+  description: string
+  source: 'preset' | 'search'
+}
+
+const PRESET_IMAGE_OPTIONS: Record<'napcat' | 'llonebot' | 'custom', ImageOption[]> = {
+  napcat: [
+    {
+      name: 'mlikiowa/napcat-docker',
+      description: 'NapCat Docker 官方推荐镜像',
+      source: 'preset',
+    },
+  ],
+  llonebot: [
+    {
+      name: 'llonebot/llonebot',
+      description: 'LLOneBot 常用镜像',
+      source: 'preset',
+    },
+  ],
+  custom: [],
+}
+
+const imageOptions = computed<ImageOption[]>(() => {
+  const presetOptions: ImageOption[] = PRESET_IMAGE_OPTIONS[protocol.value]
+  const searchOptions: ImageOption[] = imageSearchResults.value.map((item: ImageRepositoryResult) => ({
+    name: item.name,
+    description: item.description || '暂无描述',
+    source: 'search',
+  }))
+  const allOptions: ImageOption[] = [...presetOptions, ...searchOptions]
+  const deduped = new Map<string, ImageOption>()
+  allOptions.forEach((option: ImageOption) => {
+    if (!deduped.has(option.name)) {
+      deduped.set(option.name, option)
+    }
+  })
+  return Array.from(deduped.values())
+})
+
+const filteredImageTags = computed<string[]>(() => {
+  const query = imageTagSearchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return imageTags.value
+  }
+  return imageTags.value.filter((tag: string) => tag.toLowerCase().includes(query))
+})
 
 // Docker 命令预览
 const dockerCommandPreview = computed(() => {
@@ -86,14 +140,17 @@ const isValid = computed(() => {
 })
 
 async function searchImages() {
-  if (!imageSearchQuery.value.trim()) {
+  const query = imageSearchQuery.value.trim()
+  if (!query) {
+    imageSearchResults.value = []
     return
   }
 
   searchingImages.value = true
   try {
-    const response = await imageApi.search(imageSearchQuery.value.trim(), imageRegistry.value || undefined)
+    const response = await imageApi.search(query, imageRegistry.value || undefined)
     imageSearchResults.value = response.data.data || []
+    showRepoDropdown.value = true
   } catch (err) {
     error.value = getErrorMessage(err, '搜索镜像失败')
   } finally {
@@ -123,10 +180,57 @@ async function loadTags() {
   }
 }
 
-function useSearchResult(result: ImageRepositoryResult) {
-  imageRepo.value = result.name
+function selectImageRepo(option: ImageOption) {
+  imageRepo.value = option.name
+  showRepoDropdown.value = false
   void loadTags()
 }
+
+function selectImageTag(tag: string) {
+  imageTag.value = tag
+  showTagDropdown.value = false
+}
+
+function toggleRepoDropdown() {
+  showRepoDropdown.value = !showRepoDropdown.value
+  if (showRepoDropdown.value) {
+    showTagDropdown.value = false
+  }
+}
+
+function toggleTagDropdown() {
+  if (!imageRepo.value.trim()) {
+    error.value = '请先选择镜像名称'
+    return
+  }
+  showTagDropdown.value = !showTagDropdown.value
+  if (showTagDropdown.value) {
+    imageTagSearchQuery.value = ''
+    showRepoDropdown.value = false
+    if (imageTags.value.length === 0 && !loadingTags.value) {
+      void loadTags()
+    }
+  }
+}
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target
+  if (!(target instanceof Node)) {
+    return
+  }
+  if (imagePickerRef.value && !imagePickerRef.value.contains(target)) {
+    showRepoDropdown.value = false
+    showTagDropdown.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 async function pullImage() {
   if (!imageRepo.value.trim() || !imageTag.value.trim()) {
@@ -162,7 +266,7 @@ async function handleSubmit() {
   const createData: InstanceCreate = {
     name: name.value,
     qq_number: qqNumber.value,
-    protocol: protocol.value as 'napcat' | 'llonebot' | 'custom',
+    protocol: protocol.value,
     description: description.value || undefined,
     // NapCat 配置（始终传递）
     napcat_uid: napcatUid.value !== null ? napcatUid.value : undefined,
@@ -298,44 +402,97 @@ function goBack() {
           </div>
 
           <!-- 镜像配置 -->
-          <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+          <div ref="imagePickerRef" class="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
             <div>
               <label class="block text-sm font-medium text-pink-600">镜像配置</label>
-              <p class="text-xs text-gray-500 mt-1">支持 Docker Hub 和自定义镜像仓库。</p>
+              <p class="text-xs text-gray-500 mt-1">使用下拉选择镜像和版本，避免手动输入错误。</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-3">
-              <div>
-                <label class="block text-xs text-gray-500 mb-1">Registry（可选）</label>
-                <input
-                  v-model="imageRegistry"
-                  type="text"
-                  placeholder="registry.example.com"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
-                />
+            <div class="grid grid-cols-2 gap-3">
+              <div class="relative">
+                <label class="block text-xs text-gray-500 mb-1">镜像名称</label>
+                <button
+                  type="button"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-pink-400"
+                  @click="toggleRepoDropdown"
+                >
+                  <span class="truncate text-sm text-gray-800">{{ imageRepo || '请选择镜像仓库' }}</span>
+                  <span class="text-gray-400">▾</span>
+                </button>
+
+                <div
+                  v-if="showRepoDropdown"
+                  class="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                >
+                  <button
+                    v-for="item in imageOptions"
+                    :key="item.name"
+                    type="button"
+                    class="w-full px-3 py-2 text-left border-b border-gray-100 hover:bg-pink-50"
+                    @click="selectImageRepo(item)"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-medium text-gray-800 truncate">{{ item.name }}</span>
+                      <span
+                        v-if="imageRepo === item.name"
+                        class="text-xs font-semibold text-pink-500"
+                      >已选中</span>
+                    </div>
+                    <div class="text-xs text-gray-500 truncate">{{ item.description }}</div>
+                  </button>
+                  <div v-if="imageOptions.length === 0" class="px-3 py-3 text-xs text-gray-500">
+                    暂无可选镜像，请先搜索镜像
+                  </div>
+                </div>
               </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1">仓库</label>
-                <input
-                  v-model="imageRepo"
-                  type="text"
-                  placeholder="mlikiowa/napcat-docker"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
-                  @blur="loadTags"
-                />
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1">版本</label>
-                <input
-                  v-model="imageTag"
-                  list="image-tag-options"
-                  type="text"
-                  placeholder="latest"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
-                />
-                <datalist id="image-tag-options">
-                  <option v-for="tag in imageTags" :key="tag" :value="tag"></option>
-                </datalist>
+
+              <div class="relative">
+                <label class="block text-xs text-gray-500 mb-1">镜像版本 (Tag)</label>
+                <button
+                  type="button"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-pink-400 disabled:bg-gray-100"
+                  :disabled="!imageRepo"
+                  @click="toggleTagDropdown"
+                >
+                  <span class="truncate text-sm text-gray-800">{{ imageTag || '请选择版本' }}</span>
+                  <span class="text-gray-400">▾</span>
+                </button>
+
+                <div
+                  v-if="showTagDropdown"
+                  class="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg"
+                >
+                  <div v-if="loadingTags" class="px-3 py-3 text-xs text-gray-500">加载版本中...</div>
+                  <template v-else>
+                    <div class="p-2 border-b border-gray-100">
+                      <input
+                        v-model="imageTagSearchQuery"
+                        type="text"
+                        placeholder="搜索版本，如 latest"
+                        class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                      />
+                    </div>
+                    <button
+                      v-for="tag in filteredImageTags"
+                      :key="tag"
+                      type="button"
+                      class="w-full px-3 py-2 text-left border-b border-gray-100 hover:bg-pink-50 flex items-center justify-between"
+                      @click="selectImageTag(tag)"
+                    >
+                      <span class="text-sm text-gray-700">{{ tag }}</span>
+                      <span v-if="imageTag === tag" class="text-xs font-semibold text-pink-500">已选中</span>
+                    </button>
+                    <div v-if="imageTags.length === 0" class="px-3 py-3 text-xs text-gray-500">
+                      暂无版本，请点击刷新版本
+                    </div>
+                    <div
+                      v-else-if="filteredImageTags.length === 0"
+                      class="px-3 py-3 text-xs text-gray-500"
+                    >
+                      没有匹配的版本，请换个关键词试试
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -357,26 +514,53 @@ function goBack() {
                 :disabled="loadingTags"
                 class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
                 @click="loadTags"
-              >{{ loadingTags ? '加载中...' : '加载版本' }}</button>
+              >{{ loadingTags ? '加载中...' : '刷新版本' }}</button>
               <button
                 type="button"
                 :disabled="pullingImage"
                 class="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 disabled:opacity-50"
                 @click="pullImage"
               >{{ pullingImage ? '拉取中...' : '拉取镜像' }}</button>
+              <button
+                type="button"
+                class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100"
+                @click="showImageAdvanced = !showImageAdvanced"
+              >{{ showImageAdvanced ? '收起高级配置' : '展开高级配置' }}</button>
             </div>
 
-            <div v-if="imageSearchResults.length > 0" class="max-h-40 overflow-auto rounded border border-gray-200 bg-white">
-              <button
-                v-for="item in imageSearchResults"
-                :key="item.name"
-                type="button"
-                class="w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50"
-                @click="useSearchResult(item)"
-              >
-                <div class="text-sm font-medium text-gray-800">{{ item.name }}</div>
-                <div class="text-xs text-gray-500 truncate">{{ item.description || '暂无描述' }}</div>
-              </button>
+            <div v-if="showImageAdvanced" class="grid grid-cols-3 gap-3 pt-2 border-t border-gray-200">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">Registry（可选）</label>
+                <input
+                  v-model="imageRegistry"
+                  type="text"
+                  placeholder="registry.example.com"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">仓库（手动输入）</label>
+                <input
+                  v-model="imageRepo"
+                  type="text"
+                  placeholder="mlikiowa/napcat-docker"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                  @blur="loadTags"
+                />
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">版本（手动输入）</label>
+                <input
+                  v-model="imageTag"
+                  type="text"
+                  placeholder="latest"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div v-if="imageSearchResults.length > 0" class="text-xs text-gray-500">
+              已找到 {{ imageSearchResults.length }} 个镜像候选，可在“镜像名称”下拉中选择。
             </div>
           </div>
 

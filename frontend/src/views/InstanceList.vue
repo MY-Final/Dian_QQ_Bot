@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useInstanceStore } from '../stores/instance'
-import { type Instance, type InstanceCreate } from '../api'
+import { getErrorMessage, imageApi, type Instance, type InstanceCreate } from '../api'
 import Modal from '../components/ui/Modal.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
-import Input from '../components/ui/Input.vue'
-import Select from '../components/ui/Select.vue'
 import Toast from '../components/ui/Toast.vue'
 import { useToast } from '@/composables/useToast'
 import { useDockerStatus } from '@/composables/useDockerStatus'
@@ -35,7 +33,7 @@ const confirmModal = ref({
 // Form state
 const formName = ref('dian-bot')
 const formQqNumber = ref('')
-const formFramework = ref('napcat')
+const formFramework = ref<'napcat' | 'llonebot'>('napcat')
 const formWebPort = ref(6099)
 const formHttpPort = ref(3000)
 const formWsPort = ref(3001)
@@ -43,6 +41,14 @@ const formUid = ref(1000)
 const formGid = ref(1000)
 const formLlPort = ref(3080)
 const formDescription = ref('')
+const formImageTag = ref('latest')
+const imageTagOptions = ref<string[]>([])
+const loadingImageTags = ref(false)
+const showImageTagDropdown = ref(false)
+const imageTagDropdownRef = ref<HTMLElement | null>(null)
+const creatingInstance = ref(false)
+const createStatusMessage = ref('')
+const createStatusStage = ref<'idle' | 'ensure' | 'create'>('idle')
 const searchKeyword = ref('')
 const statusFilter = ref<'all' | 'running' | 'stopped' | 'created' | 'error'>('all')
 
@@ -50,6 +56,38 @@ const frameworkOptions = [
   { value: 'napcat', label: 'NapCat Docker' },
   { value: 'llonebot', label: 'LLOneBot' },
 ]
+
+const selectedImageRepo = computed<string>(() => {
+  if (formFramework.value === 'napcat') {
+    return 'mlikiowa/napcat-docker'
+  }
+  return 'initialencounter/llonebot'
+})
+
+const filteredImageTagOptions = computed<string[]>(() => {
+  const keyword = formImageTag.value.trim().toLowerCase()
+  if (!keyword) {
+    return imageTagOptions.value
+  }
+  return imageTagOptions.value.filter((tag: string) => tag.toLowerCase().includes(keyword))
+})
+
+const isDeploying = computed<boolean>(() => creatingInstance.value || store.loading)
+
+const deploySteps = [
+  { key: 'ensure', label: '检查并准备镜像' },
+  { key: 'create', label: '创建实例容器' },
+] as const
+
+const currentDeployStepIndex = computed<number>(() => {
+  if (createStatusStage.value === 'create') {
+    return 1
+  }
+  if (createStatusStage.value === 'ensure') {
+    return 0
+  }
+  return -1
+})
 
 const filteredInstances = computed(() => {
   return store.instances.filter((instance) => {
@@ -64,6 +102,11 @@ const filteredInstances = computed(() => {
 onMounted(() => {
   store.fetchInstances()
   fetchDockerStatus()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 const dockerCommand = computed(() => {
@@ -76,21 +119,69 @@ const dockerCommand = computed(() => {
   -p ${formWsPort.value}:3001 \\
   -p ${formWebPort.value}:6099 \\
   --restart=always \\
-  mlikiowa/napcat-docker:latest`
+  ${selectedImageRepo.value}:${formImageTag.value}`
   } else {
     return `docker run -d \\
   --name ${formName.value} \\
   -p ${formLlPort.value}:3080 \\
-  initialencounter/llonebot:latest`
+  ${selectedImageRepo.value}:${formImageTag.value}`
   }
 })
 
+async function loadImageTags() {
+  loadingImageTags.value = true
+  try {
+    const response = await imageApi.tags(selectedImageRepo.value)
+    imageTagOptions.value = response.data.data?.tags || []
+    if (imageTagOptions.value.length > 0 && !imageTagOptions.value.includes(formImageTag.value)) {
+      const firstTag = imageTagOptions.value[0]
+      if (firstTag) {
+        formImageTag.value = firstTag
+      }
+    }
+  } catch (err) {
+    toast.error(getErrorMessage(err, '获取镜像版本失败'))
+    imageTagOptions.value = []
+  } finally {
+    loadingImageTags.value = false
+  }
+}
+
+function toggleImageTagDropdown() {
+  showImageTagDropdown.value = !showImageTagDropdown.value
+  if (showImageTagDropdown.value && imageTagOptions.value.length === 0 && !loadingImageTags.value) {
+    void loadImageTags()
+  }
+}
+
+function selectImageTag(tag: string) {
+  formImageTag.value = tag
+  showImageTagDropdown.value = false
+}
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target
+  if (!(target instanceof Node)) {
+    return
+  }
+  if (imageTagDropdownRef.value && !imageTagDropdownRef.value.contains(target)) {
+    showImageTagDropdown.value = false
+  }
+}
+
 function openModal() {
   showCreateModal.value = true
+  createStatusMessage.value = ''
+  creatingInstance.value = false
+  createStatusStage.value = 'idle'
+  void loadImageTags()
 }
 
 function closeModal() {
   showCreateModal.value = false
+  createStatusMessage.value = ''
+  creatingInstance.value = false
+  createStatusStage.value = 'idle'
 }
 
 async function handleCreate() {
@@ -104,8 +195,24 @@ async function handleCreate() {
   const createData: InstanceCreate = {
     name: formName.value,
     qq_number: formQqNumber.value,
-    protocol: formFramework.value as 'napcat' | 'llonebot' | 'custom',
+    protocol: formFramework.value,
     description: formDescription.value || undefined,
+    image_repo: selectedImageRepo.value,
+    image_tag: formImageTag.value,
+  }
+
+  creatingInstance.value = true
+  createStatusStage.value = 'ensure'
+  createStatusMessage.value = '正在准备镜像，首次部署可能需要等待 1-3 分钟...'
+
+  try {
+    await imageApi.ensure(selectedImageRepo.value, formImageTag.value, undefined, true)
+  } catch (err) {
+    toast.error(getErrorMessage(err, '镜像检查失败，请确认版本是否存在'))
+    creatingInstance.value = false
+    createStatusStage.value = 'idle'
+    createStatusMessage.value = ''
+    return
   }
   
   // 如果是 NapCat，添加端口和环境变量配置
@@ -117,11 +224,21 @@ async function handleCreate() {
     if (formGid.value) createData.napcat_gid = formGid.value
   }
   
+  createStatusStage.value = 'create'
+  createStatusMessage.value = '镜像就绪，正在创建实例容器...'
   const result = await store.createInstance(createData)
+  creatingInstance.value = false
+
   if (result) {
+    createStatusMessage.value = ''
+    createStatusStage.value = 'idle'
     closeModal()
     toast.success(`实例 "${formName.value}" 创建成功！`)
     formQqNumber.value = '' // 清空 QQ 号
+  } else {
+    createStatusMessage.value = ''
+    createStatusStage.value = 'idle'
+    toast.error(store.error || '创建实例失败，请稍后重试')
   }
 }
 
@@ -225,6 +342,12 @@ function clearFilters() {
   searchKeyword.value = ''
   statusFilter.value = 'all'
 }
+
+watch(formFramework, () => {
+  formImageTag.value = 'latest'
+  showImageTagDropdown.value = false
+  void loadImageTags()
+})
 </script>
 
 <template>
@@ -558,67 +681,184 @@ function clearFilters() {
     subtitle="Docker 容器部署"
     @close="closeModal"
   >
-    <form class="space-y-4" @submit.prevent="handleCreate">
-      <!-- 基本信息 -->
-      <div class="grid grid-cols-2 gap-4">
-        <Input
-          v-model="formName"
-          label="实例名称"
-          placeholder="dian-bot"
-          required
-        />
-        <Input
-          v-model="formQqNumber"
-          label="QQ 号码"
-          placeholder="123456789"
-          required
-          min-length="5"
-        />
-      </div>
-      
-      <div class="grid grid-cols-2 gap-4">
-        <Select
-          v-model="formFramework"
-          label="选择框架"
-          :options="frameworkOptions"
-        />
-        <Input
-          v-model="formDescription"
-          label="描述（可选）"
-          placeholder="我的 QQ Bot"
-        />
+    <form class="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-5" @submit.prevent="handleCreate">
+      <div class="space-y-5">
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span class="w-1 h-3 rounded-full bg-pink-500"></span>
+            基础配置
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-gray-500">实例名称 *</label>
+              <input
+                v-model="formName"
+                type="text"
+                placeholder="dian-bot"
+                required
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-gray-500">QQ 号码 *</label>
+              <input
+                v-model="formQqNumber"
+                type="text"
+                placeholder="123456789"
+                required
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+              />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-gray-500">镜像名称</label>
+              <select
+                v-model="formFramework"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+              >
+                <option v-for="opt in frameworkOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-gray-500">描述（可选）</label>
+              <input
+                v-model="formDescription"
+                type="text"
+                placeholder="我的 QQ Bot"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+              />
+            </div>
+          </div>
+          <div ref="imageTagDropdownRef" class="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 relative">
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">镜像版本 (Tag)</p>
+                <p class="text-xs text-gray-500">仓库：{{ selectedImageRepo }}</p>
+              </div>
+              <button
+                type="button"
+                :disabled="loadingImageTags"
+                class="px-3 py-1.5 text-xs rounded-full border border-gray-300 bg-white hover:bg-pink-50 disabled:opacity-50"
+                @click="loadImageTags"
+              >{{ loadingImageTags ? '检查中...' : '检查更新' }}</button>
+            </div>
+            <div class="flex gap-2">
+              <input
+                v-model="formImageTag"
+                type="text"
+                placeholder="latest"
+                class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+                @focus="showImageTagDropdown = true"
+              />
+              <button
+                type="button"
+                class="px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50"
+                @click="toggleImageTagDropdown"
+              >
+                ▾
+              </button>
+            </div>
+            <div
+              v-if="showImageTagDropdown"
+              class="absolute left-4 right-4 top-full mt-2 z-20 rounded-xl border border-gray-200 bg-white shadow-lg max-h-48 overflow-auto"
+            >
+              <button
+                v-for="tag in filteredImageTagOptions"
+                :key="tag"
+                type="button"
+                class="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-pink-50 flex items-center justify-between"
+                @click="selectImageTag(tag)"
+              >
+                <span>{{ tag }}</span>
+                <span v-if="formImageTag === tag" class="text-xs text-pink-500 font-semibold">已选中</span>
+              </button>
+              <div v-if="loadingImageTags" class="px-3 py-2 text-xs text-gray-500">版本加载中...</div>
+              <div v-else-if="filteredImageTagOptions.length === 0" class="px-3 py-2 text-xs text-gray-500">
+                暂无匹配版本
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="formFramework === 'napcat'" class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span class="w-1 h-3 rounded-full bg-pink-500"></span>
+            环境权限变量
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+              <span class="text-xs font-semibold text-gray-500">NAPCAT_UID</span>
+              <input v-model.number="formUid" type="number" class="w-20 text-right font-semibold text-gray-800 outline-none" />
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+              <span class="text-xs font-semibold text-gray-500">NAPCAT_GID</span>
+              <input v-model.number="formGid" type="number" class="w-20 text-right font-semibold text-gray-800 outline-none" />
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span class="w-1 h-3 rounded-full bg-pink-500"></span>
+            端口映射 (Host)
+          </div>
+          <div v-if="formFramework === 'napcat'" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-3 text-center">
+              <p class="text-[11px] uppercase tracking-wider text-gray-400">Web UI</p>
+              <input v-model.number="formWebPort" type="number" class="mt-1 w-full text-center text-lg font-semibold text-gray-800 outline-none" />
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-3 text-center">
+              <p class="text-[11px] uppercase tracking-wider text-gray-400">HTTP</p>
+              <input v-model.number="formHttpPort" type="number" class="mt-1 w-full text-center text-lg font-semibold text-gray-800 outline-none" />
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-3 text-center">
+              <p class="text-[11px] uppercase tracking-wider text-gray-400">WS</p>
+              <input v-model.number="formWsPort" type="number" class="mt-1 w-full text-center text-lg font-semibold text-gray-800 outline-none" />
+            </div>
+          </div>
+          <div v-else class="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+            <span class="text-xs font-semibold text-gray-500">容器内 3080 端口</span>
+            <input v-model.number="formLlPort" type="number" class="w-24 text-right text-lg font-semibold text-gray-800 outline-none" />
+          </div>
+        </section>
       </div>
 
-      <!-- NapCat Fields -->
-      <div v-if="formFramework === 'napcat'" class="space-y-3">
-        <p class="text-xs text-pink-500 font-medium">宿主机映射端口配置</p>
-        <div class="grid grid-cols-3 gap-3">
-          <Input v-model="formWebPort" type="number" label="Web UI (6099)" />
-          <Input v-model="formHttpPort" type="number" label="HTTP (3000)" />
-          <Input v-model="formWsPort" type="number" label="WS (3001)" />
+      <div class="rounded-[1.8rem] bg-slate-100 p-2">
+        <div class="h-full rounded-[1.4rem] bg-[#0f172a] p-5 flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-rose-400/40"></span>
+              <span class="w-2 h-2 rounded-full bg-amber-400/40"></span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400/40"></span>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">Docker Preview</span>
+          </div>
+          <pre class="flex-1 overflow-auto text-[12px] leading-7 text-rose-400 font-mono whitespace-pre-wrap">{{ dockerCommand }}</pre>
+          <div v-if="isDeploying" class="mt-3 space-y-2">
+            <div
+              v-for="(step, index) in deploySteps"
+              :key="step.key"
+              class="flex items-center justify-between text-xs"
+            >
+              <span
+                :class="index <= currentDeployStepIndex ? 'text-pink-300' : 'text-slate-500'"
+              >{{ step.label }}</span>
+              <span
+                :class="index < currentDeployStepIndex ? 'text-emerald-300' : index === currentDeployStepIndex ? 'text-pink-300' : 'text-slate-500'"
+              >{{ index < currentDeployStepIndex ? '已完成' : index === currentDeployStepIndex ? '进行中' : '等待中' }}</span>
+            </div>
+          </div>
+          <p v-if="createStatusMessage" class="mt-3 text-xs text-slate-300">
+            {{ createStatusMessage }}
+          </p>
+          <button
+            type="submit"
+            :disabled="isDeploying"
+            class="mt-4 w-full py-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold transition-colors disabled:opacity-70"
+          >{{ isDeploying ? '部署进行中...' : '开始部署' }}</button>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <Input v-model="formUid" type="number" label="NAPCAT_UID" />
-          <Input v-model="formGid" type="number" label="NAPCAT_GID" />
-        </div>
       </div>
-
-      <!-- LLOneBot Fields -->
-      <div v-else>
-        <Input v-model="formLlPort" type="number" label="宿主机映射端口 (容器内:3080)" />
-      </div>
-
-      <!-- Command Preview -->
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Docker 指令预览</label>
-        <div class="bg-gray-900 rounded-lg p-4 max-h-48 overflow-auto">
-          <code class="text-pink-400 text-sm font-mono whitespace-pre">{{ dockerCommand }}</code>
-        </div>
-      </div>
-
-      <button type="submit" class="w-full py-2.5 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors">
-        立即启动容器
-      </button>
     </form>
   </Modal>
 
