@@ -54,8 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 
 # 复制应用代码
-COPY backend/ ./backend/
-COPY requirements.txt .
+COPY backend/ ./
 
 # 创建必要的目录并设置权限
 RUN mkdir -p /app/data /app/logs /app/instances \
