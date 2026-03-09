@@ -93,13 +93,15 @@ async def client(test_session_maker) -> AsyncGenerator[AsyncClient, None]:
         AsyncClient: HTTP 测试客户端
     """
 
-    # 重写数据库依赖
+    # 重写数据库依赖（与生产环境 get_db() 保持一致，成功时提交事务）
     async def override_get_db():
         async with test_session_maker() as session:
             try:
                 yield session
-            finally:
-                pass
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
 
     app.dependency_overrides[get_db] = override_get_db
 

@@ -129,8 +129,8 @@ class UserAlreadyExistsError(AuthError):
 class TokenValidationError(AuthError):
     """Token 校验失败异常。"""
 
-    def __init__(self) -> None:
-        super().__init__("Token 无效或已过期")
+    def __init__(self, message: str = "Token 无效或已过期") -> None:
+        super().__init__(message)
 
 
 class AuthUserNotFoundError(AuthError):

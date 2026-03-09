@@ -47,7 +47,9 @@ async def test_login_internal_error_does_not_leak_details(
     def _raise_runtime_error(_: str, __: str) -> bool:
         raise RuntimeError("db secret leaked")
 
-    monkeypatch.setattr("app.api.v1.auth.verify_password", _raise_runtime_error)
+    monkeypatch.setattr(
+        "app.services.auth_service.verify_password", _raise_runtime_error
+    )
 
     response = await client.post(
         "/api/v1/auth/login",
@@ -69,7 +71,9 @@ async def test_allocate_port_skips_conflicts(monkeypatch: pytest.MonkeyPatch) ->
         return {35001}
 
     monkeypatch.setattr(docker_utils, "_get_docker_mapped_ports", lambda: {35000})
-    monkeypatch.setattr(docker_utils, "_get_database_allocated_ports", _mock_database_allocated_ports)
+    monkeypatch.setattr(
+        docker_utils, "_get_database_allocated_ports", _mock_database_allocated_ports
+    )
     monkeypatch.setattr(
         docker_utils,
         "_is_host_port_available",
