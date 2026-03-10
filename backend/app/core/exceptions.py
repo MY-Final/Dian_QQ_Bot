@@ -87,8 +87,8 @@ class SetupError(BotError):
 class DatabaseConnectionError(SetupError):
     """数据库连接失败异常。"""
 
-    def __init__(self) -> None:
-        super().__init__("数据库连接失败，请检查配置后重试")
+    def __init__(self, message: str = "数据库连接失败，请检查配置后重试") -> None:
+        super().__init__(message)
 
 
 class DatabaseInitializationError(SetupError):

@@ -179,7 +179,7 @@ function handleSubmit() {
       <button 
         type="button" 
         @click="emit('test')" 
-        :disabled="testingConnection"
+        :disabled="testingConnection || !dbMode"
         class="flex items-center text-[12px] font-bold text-slate-500 hover:text-pink-600 transition-colors px-4 py-2 disabled:opacity-50"
       >
         <svg 
@@ -199,7 +199,7 @@ function handleSubmit() {
           <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
           <path d="M16 16h5v5"/>
         </svg>
-        测试数据库连接
+        {{ dbMode ? '测试数据库连接' : '内置模式无需手动测试' }}
       </button>
       <button 
         type="submit"

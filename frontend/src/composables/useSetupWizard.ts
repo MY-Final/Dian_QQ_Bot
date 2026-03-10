@@ -50,7 +50,7 @@ export function useSetupWizard() {
   // 切换数据库模式
   function toggleDbMode() {
     dbMode.value = !dbMode.value
-    dbConnected.value = false
+    dbConnected.value = !dbMode.value
     
     if (!dbMode.value) {
       // 内置模式：默认配置
@@ -171,6 +171,9 @@ export function useSetupWizard() {
   
   // 验证步骤 2（数据库配置）
   function validateStep2(): { valid: boolean; message?: string } {
+    if (!dbMode.value) {
+      return { valid: true }
+    }
     if (dbMode.value && !dbConnected.value) {
       return { valid: false, message: '请先测试数据库连接' }
     }

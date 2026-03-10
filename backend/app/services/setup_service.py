@@ -146,7 +146,7 @@ class SetupService:
                 await conn.execute(text("SELECT 1"))
         except Exception as exc:
             logger.error("数据库连接测试失败: %s", exc, exc_info=True)
-            raise DatabaseConnectionError() from exc
+            raise self._map_database_connection_error(exc) from exc
         finally:
             await temp_engine.dispose()
 
@@ -327,3 +327,35 @@ class SetupService:
             return AdminCreationError("数据库连接失败，请检查地址、端口和网络可达性")
 
         return AdminCreationError()
+
+    @staticmethod
+    def _map_database_connection_error(exc: Exception) -> DatabaseConnectionError:
+        """将底层异常映射为可读的数据库连接异常。
+
+        Args:
+            exc: 原始异常
+
+        Returns:
+            DatabaseConnectionError: 可读异常信息
+        """
+        error_text = str(exc)
+        lower_error_text = error_text.lower()
+
+        if "password authentication failed" in lower_error_text:
+            return DatabaseConnectionError("数据库认证失败，请检查用户名或密码")
+
+        if (
+            "name or service not known" in lower_error_text
+            or "could not translate host name" in lower_error_text
+        ):
+            return DatabaseConnectionError(
+                "数据库主机无法解析。Docker 内置模式请使用 host=postgres，外部数据库请填写真实地址"
+            )
+
+        if "connection refused" in lower_error_text:
+            return DatabaseConnectionError("数据库连接被拒绝，请检查数据库服务是否启动")
+
+        if "timeout" in lower_error_text:
+            return DatabaseConnectionError("数据库连接超时，请检查网络和防火墙设置")
+
+        return DatabaseConnectionError()
