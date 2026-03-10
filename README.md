@@ -21,7 +21,7 @@
 - 📝 **实时日志查看** - 支持获取容器最新日志
 - 🎨 **点点主题色** - 温馨粉色主题 💕
 - 🔧 **RESTful API** - 完整的 CRUD 接口，易于集成
-- 📦 **Docker Compose** - 一键部署后端 + 数据库
+- 📦 **Docker Compose / Docker Hub** - 单容器运行前后端，用户只需启动一个应用容器
 
 ---
 
@@ -33,7 +33,7 @@
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌──────────────┐     ┌──────────────────────────────────────────────────┐  │
-│  │   Frontend   │────▶│              FastAPI Backend (Port 8000)         │  │
+│  │   Frontend   │────▶│             FastAPI Backend (Port 18080)         │  │
 │  │  (Vue 3 +    │     │  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │  │
 │  │  shadcn-vue) │     │  │  API Routes │  │  Services   │  │ Managers │ │  │
 │  └──────────────┘     │  │  /api/v1/*  │  │  BotService │  │ NapCat   │ │  │
@@ -187,10 +187,30 @@ cp .env.example .env
 docker-compose up -d
 
 # 4. 查看日志
-docker-compose logs -f api
+docker-compose logs -f app
 
-# 5. 访问 API 文档
-# http://localhost:8000/docs
+# 5. 访问应用（前端 + API）
+# Web: http://localhost:16788
+# API Docs: http://localhost:16788/api/docs
+```
+
+### 方式二：Docker Hub（一个容器直接运行）
+
+```bash
+docker run -d \
+  --name dian-qq-bot \
+  -p 16788:16788 \
+  -e DB_HOST=<your_db_host> \
+  -e DB_PORT=5432 \
+  -e DB_NAME=dian_bot \
+  -e DB_USER=postgres \
+  -e DB_PASSWORD=<your_db_password> \
+  -e JWT_SECRET_KEY=<your_strong_secret> \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  -v $(pwd)/instances:/app/instances \
+  <your_dockerhub_user>/dian-qq-bot:latest
 ```
 
 ### 方式二：本地开发
@@ -226,7 +246,7 @@ python main.py
 ### 创建 Bot 实例
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/instances" \
+curl -X POST "http://localhost:16788/api/v1/instances" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "my-bot",
@@ -261,31 +281,31 @@ curl -X POST "http://localhost:8000/api/v1/instances" \
 ### 列出所有实例
 
 ```bash
-curl "http://localhost:8000/api/v1/instances"
+curl "http://localhost:16788/api/v1/instances"
 ```
 
 ### 启动实例
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/instances/{instance_id}/start"
+curl -X POST "http://localhost:16788/api/v1/instances/{instance_id}/start"
 ```
 
 ### 停止实例
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/instances/{instance_id}/stop"
+curl -X POST "http://localhost:16788/api/v1/instances/{instance_id}/stop"
 ```
 
 ### 获取日志
 
 ```bash
-curl "http://localhost:8000/api/v1/instances/{instance_id}/logs?tail=100"
+curl "http://localhost:16788/api/v1/instances/{instance_id}/logs?tail=100"
 ```
 
 ### 删除实例
 
 ```bash
-curl -X DELETE "http://localhost:8000/api/v1/instances/{instance_id}"
+curl -X DELETE "http://localhost:16788/api/v1/instances/{instance_id}"
 ```
 
 ---
@@ -300,7 +320,7 @@ curl -X DELETE "http://localhost:8000/api/v1/instances/{instance_id}"
 | `DB_PORT` | `5432` | PostgreSQL 端口 |
 | `DEBUG` | `false` | 调试模式 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
-| `API_PORT` | `8000` | 后端 API 端口 |
+| `APP_PORT` | `16788` | 单容器应用对外端口（前端 + API 入口） |
 | `DOCKER_SOCKET` | `npipe:////./pipe/docker_engine` | Docker Socket 路径（Windows） |
 | `CONTAINER_PREFIX` | `dian` | 容器名称前缀 |
 | `NAPCAT_IMAGE` | `mlikiowa/napcat-docker:latest` | NapCat 镜像 |
