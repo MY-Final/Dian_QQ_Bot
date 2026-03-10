@@ -107,6 +107,7 @@ jobs:
       with:
         images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot
         tags: |
+          type=raw,value=latest
           type=semver,pattern={{version}}
     
     - name: Build and push single image
