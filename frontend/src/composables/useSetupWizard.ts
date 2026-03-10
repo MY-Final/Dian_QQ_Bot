@@ -12,6 +12,14 @@ export interface AdminConfig {
 export type SetupStep = 1 | 2 | 3 | 4 | 5
 
 export function useSetupWizard() {
+  const INTERNAL_DB_DEFAULTS: DatabaseConfig = {
+    host: 'postgres',
+    port: 5432,
+    database: 'dian_bot',
+    username: 'postgres',
+    password: 'Mima123456.@',
+  }
+
   // 当前步骤
   const currentStep = ref<SetupStep>(1)
   
@@ -20,11 +28,7 @@ export function useSetupWizard() {
   
   // 数据库配置
   const dbConfig = ref<DatabaseConfig>({
-    host: 'postgres',
-    port: 5432,
-    database: 'dian_bot',
-    username: 'postgres',
-    password: 'Mima123456.@',
+    ...INTERNAL_DB_DEFAULTS,
   })
   
   // 管理员配置
@@ -47,20 +51,24 @@ export function useSetupWizard() {
   const showAdminPassword = ref(false)
   const showConfirmPassword = ref(false)
   
+  async function loadInternalDbDefaults(): Promise<void> {
+    try {
+      const response = await setupApi.getDefaultDbConfig()
+      if (response.data.success && response.data.data) {
+        dbConfig.value = response.data.data
+      }
+    } catch {
+      dbConfig.value = { ...INTERNAL_DB_DEFAULTS }
+    }
+  }
+
   // 切换数据库模式
-  function toggleDbMode() {
+  async function toggleDbMode() {
     dbMode.value = !dbMode.value
     dbConnected.value = !dbMode.value
-    
+
     if (!dbMode.value) {
-      // 内置模式：默认配置
-      dbConfig.value = {
-        host: 'postgres',
-        port: 5432,
-        database: 'dian_bot',
-        username: 'postgres',
-        password: 'Mima123456.@',
-      }
+      await loadInternalDbDefaults()
     }
   }
   
@@ -269,6 +277,7 @@ export function useSetupWizard() {
     
     // 方法
     toggleDbMode,
+    loadInternalDbDefaults,
     togglePassword,
     getPasswordType,
     validatePassword,

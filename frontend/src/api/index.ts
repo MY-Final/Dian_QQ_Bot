@@ -236,6 +236,9 @@ export const systemApi = {
 export const setupApi = {
   /** 获取初始化状态 */
   getStatus: () => api.get<ApiResponse<{ initialized: boolean }>>('/setup/status'),
+
+  /** 获取内置数据库默认配置 */
+  getDefaultDbConfig: () => api.get<ApiResponse<DatabaseConfig>>('/setup/default-db-config'),
   
   /** 测试数据库连接 */
   testConnection: (config: DatabaseConfig) => api.post<ApiResponse<{ connected: boolean }>>('/setup/test-db-connection', config),

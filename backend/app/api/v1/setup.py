@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.exceptions import (
     AdminCreationError,
     DatabaseConnectionError,
@@ -78,6 +79,28 @@ class CreateAdminRequest(BaseModel):
 
     admin: AdminCreateRequest = Field(..., description="管理员信息")
     database: DatabaseConfig = Field(..., description="数据库配置")
+
+
+@router.get("/default-db-config", summary="获取内置数据库默认配置")
+async def get_default_db_config() -> JSONResponse:
+    """获取内置数据库默认配置。
+
+    Returns:
+        JSONResponse: 默认数据库连接参数
+    """
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=success_response(
+            data={
+                "host": settings.db_host,
+                "port": settings.db_port,
+                "database": settings.db_name,
+                "username": settings.db_user,
+                "password": settings.db_password,
+            },
+            message="获取默认数据库配置成功",
+        ),
+    )
 
 
 @router.get("/status", summary="检查系统初始化状态")

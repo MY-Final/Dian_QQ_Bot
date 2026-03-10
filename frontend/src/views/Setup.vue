@@ -24,6 +24,7 @@ const {
   showAdminPassword,
   showConfirmPassword,
   toggleDbMode,
+  loadInternalDbDefaults,
   togglePassword,
   testConnection,
   nextStep,
@@ -34,6 +35,7 @@ const {
 // 检查是否已初始化
 onMounted(async () => {
   try {
+    await loadInternalDbDefaults()
     const response = await fetch('/api/v1/setup/status')
     const data = await response.json()
     if (data.data?.initialized) {
