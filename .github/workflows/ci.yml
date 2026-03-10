@@ -108,6 +108,8 @@ jobs:
         images: ${{ secrets.DOCKER_USERNAME }}/dian-qq-bot
         tags: |
           type=raw,value=latest,enable={{is_default_branch}}
+          type=semver,pattern={{major}}
+          type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{version}}
           type=sha,format=short
     
