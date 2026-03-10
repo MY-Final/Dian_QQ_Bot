@@ -94,8 +94,8 @@ class DatabaseConnectionError(SetupError):
 class DatabaseInitializationError(SetupError):
     """数据库初始化失败异常。"""
 
-    def __init__(self) -> None:
-        super().__init__("数据库表创建失败，请稍后重试")
+    def __init__(self, message: str = "数据库表创建失败，请稍后重试") -> None:
+        super().__init__(message)
 
 
 class AdminCreationError(SetupError):

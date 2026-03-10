@@ -1,5 +1,6 @@
 """系统初始化业务服务模块。"""
 
+import asyncio
 import logging
 import uuid
 from dataclasses import dataclass
@@ -172,13 +173,34 @@ class SetupService:
         """
         database_url = self._build_database_url(host, port, database, username, password)
         temp_engine = create_async_engine(database_url, echo=False, future=True)
+        retry_count = 3
+        retry_interval_seconds = 1.0
+        last_exception: Exception | None = None
+
         try:
-            async with temp_engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                await _ensure_runtime_schema(conn)
-        except Exception as exc:
+            for attempt in range(1, retry_count + 1):
+                try:
+                    async with temp_engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.create_all)
+                        await _ensure_runtime_schema(conn)
+                    return
+                except Exception as exc:
+                    last_exception = exc
+                    is_last_attempt = attempt == retry_count
+                    if is_last_attempt:
+                        break
+                    logger.warning(
+                        "数据库初始化第 %s 次尝试失败，%s 秒后重试",
+                        attempt,
+                        retry_interval_seconds,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(retry_interval_seconds)
+
             logger.error("数据库表初始化失败", exc_info=True)
-            raise DatabaseInitializationError() from exc
+            if last_exception is None:
+                raise DatabaseInitializationError()
+            raise self._map_database_initialization_error(last_exception) from last_exception
         finally:
             await temp_engine.dispose()
 
@@ -359,3 +381,36 @@ class SetupService:
             return DatabaseConnectionError("数据库连接超时，请检查网络和防火墙设置")
 
         return DatabaseConnectionError()
+
+    @staticmethod
+    def _map_database_initialization_error(
+        exc: Exception,
+    ) -> DatabaseInitializationError:
+        """将底层异常映射为可读的数据库初始化异常。
+
+        Args:
+            exc: 原始异常
+
+        Returns:
+            DatabaseInitializationError: 可读异常信息
+        """
+        error_text = str(exc)
+        lower_error_text = error_text.lower()
+
+        if "permission denied" in lower_error_text:
+            return DatabaseInitializationError(
+                "数据库权限不足，无法创建表，请使用具备建表权限的账号"
+            )
+
+        if 'relation "bot_instances" does not exist' in lower_error_text:
+            return DatabaseInitializationError(
+                "实例表不存在，请重试初始化；若仍失败请清理旧数据库后重建"
+            )
+
+        if "connection refused" in lower_error_text:
+            return DatabaseInitializationError("初始化时数据库连接被拒绝，请确认 postgres 容器正常")
+
+        if "timeout" in lower_error_text:
+            return DatabaseInitializationError("初始化时数据库连接超时，请稍后重试")
+
+        return DatabaseInitializationError(f"数据库表创建失败：{error_text[:160]}")
