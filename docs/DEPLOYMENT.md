@@ -22,7 +22,8 @@ cd Dian_QQ_Bot
 cp .env.example .env
 
 # 编辑 .env 文件，修改数据库密码等配置
-# 重要：请修改 DB_PASSWORD 为强密码
+# 默认 DB_PASSWORD=Mima123456.@，可先用它通过连接测试
+# 生产环境建议改成更强密码
 ```
 
 ### 4. 启动服务
@@ -54,7 +55,7 @@ docker-compose ps
    - 端口：`5432`
    - 数据库：`dian_bot`
    - 用户名：`postgres`
-   - 密码：`.env` 文件中配置的密码
+   - 密码：默认 `Mima123456.@`（若修改过 .env，则用修改后的值）
 3. 创建管理员账号
 
 ---
@@ -85,7 +86,7 @@ pip install -r requirements-dev.txt
 docker run -d \
   --name dian-postgres \
   -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_PASSWORD=Mima123456.@ \
   -e POSTGRES_DB=dian_bot \
   -p 5432:5432 \
   postgres:16-alpine

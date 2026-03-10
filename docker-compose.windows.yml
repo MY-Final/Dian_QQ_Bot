@@ -5,7 +5,7 @@ version: '3.8'
 
 x-postgres-env: &postgres-env
   POSTGRES_USER: ${DB_USER:-postgres}
-  POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_now_123!}
+  POSTGRES_PASSWORD: ${DB_PASSWORD:-Mima123456.@}
   POSTGRES_DB: ${DB_NAME:-dian_bot}
   TZ: Asia/Shanghai
 
@@ -15,7 +15,7 @@ x-api-env: &api-env
   DB_PORT: 5432
   DB_NAME: ${DB_NAME:-dian_bot}
   DB_USER: ${DB_USER:-postgres}
-  DB_PASSWORD: ${DB_PASSWORD:-changeme_now_123!}
+  DB_PASSWORD: ${DB_PASSWORD:-Mima123456.@}
   # 应用配置
   DEBUG: ${DEBUG:-false}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}

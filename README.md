@@ -181,7 +181,8 @@ cd Dian_QQ_Bot
 
 # 2. 准备环境变量
 cp .env.example .env
-# 至少修改：DB_PASSWORD、JWT_SECRET_KEY
+# 内置默认 DB_PASSWORD=Mima123456.@（建议上线前修改）
+# 至少修改：JWT_SECRET_KEY
 
 # 3. 启动全部服务（postgres + api + frontend）
 docker compose up -d
@@ -214,7 +215,7 @@ docker run -d \
   --network dian-net \
   --restart unless-stopped \
   -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD='YourStrongPassword123!' \
+  -e POSTGRES_PASSWORD='Mima123456.@' \
   -e POSTGRES_DB=dian_bot \
   -v dian-postgres-data:/var/lib/postgresql/data \
   postgres:16-alpine
@@ -229,7 +230,7 @@ docker run -d \
   -e DB_PORT=5432 \
   -e DB_NAME=dian_bot \
   -e DB_USER=postgres \
-  -e DB_PASSWORD='YourStrongPassword123!' \
+  -e DB_PASSWORD='Mima123456.@' \
   -e JWT_SECRET_KEY='Change-Me-To-A-Long-Random-Secret' \
   -e PORT=18080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -349,7 +350,7 @@ curl -X DELETE "http://localhost:18080/api/v1/instances/{instance_id}"
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `DB_USER` | `postgres` | PostgreSQL 用户名 |
-| `DB_PASSWORD` | `postgres` | PostgreSQL 密码 |
+| `DB_PASSWORD` | `Mima123456.@` | PostgreSQL 密码（内置默认，建议生产修改） |
 | `DB_NAME` | `dian_bot` | PostgreSQL 数据库名 |
 | `DB_PORT` | `5432` | PostgreSQL 端口 |
 | `DEBUG` | `false` | 调试模式 |
