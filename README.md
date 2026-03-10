@@ -21,7 +21,7 @@
 - 📝 **实时日志查看** - 支持获取容器最新日志
 - 🎨 **点点主题色** - 温馨粉色主题 💕
 - 🔧 **RESTful API** - 完整的 CRUD 接口，易于集成
-- 📦 **Docker Compose / Docker Hub** - 单容器运行前后端，用户只需启动一个应用容器
+- 📦 **Docker Compose / Docker Hub** - 支持一键部署（postgres + backend + frontend）
 
 ---
 
@@ -168,52 +168,86 @@ Dian_QQ_Bot/
 
 ### 前置要求
 
-- Python 3.11+
 - Docker Desktop（Windows/Mac）或 Docker Engine（Linux）
-- PostgreSQL（或使用 Docker Compose 自动部署）
+- Docker Compose v2
+- （本地开发时）Python 3.11+
 
-### 方式一：Docker Compose（推荐）
+### 方式一：Docker Compose（推荐，最稳）
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/yourusername/Dian_QQ_Bot.git
+git clone https://github.com/MY-Final/Dian_QQ_Bot.git
 cd Dian_QQ_Bot
 
-# 2. 复制环境变量文件
+# 2. 准备环境变量
 cp .env.example .env
-# 修改 .env 中的配置（数据库密码、端口等）
+# 至少修改：DB_PASSWORD、JWT_SECRET_KEY
 
-# 3. 启动所有服务
-docker-compose up -d
+# 3. 启动全部服务（postgres + api + frontend）
+docker compose up -d
 
-# 4. 查看日志
-docker-compose logs -f app
+# 4. 查看状态和日志
+docker compose ps
+docker compose logs -f api
 
-# 5. 访问应用（前端 + API）
+# 5. 访问
 # Web: http://localhost:16788
-# API Docs: http://localhost:16788/api/docs
+# API Docs: http://localhost:18080/docs
 ```
 
-### 方式二：Docker Hub（一个容器直接运行）
+### 方式二：Docker Hub 镜像部署（服务器）
+
+当前发布为两个应用镜像：
+- `mayfinal/dian-qq-bot-backend:<tag>`
+- `mayfinal/dian-qq-bot-frontend:<tag>`
+
+最小可运行需要 3 个容器：`postgres + backend + frontend`。
 
 ```bash
+# 1) 创建网络和数据卷
+docker network create dian-net || true
+docker volume create dian-postgres-data || true
+
+# 2) 启动数据库
 docker run -d \
-  --name dian-qq-bot \
-  -p 16788:16788 \
-  -e DB_HOST=<your_db_host> \
+  --name dian-postgres \
+  --network dian-net \
+  --restart unless-stopped \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD='YourStrongPassword123!' \
+  -e POSTGRES_DB=dian_bot \
+  -v dian-postgres-data:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# 3) 启动后端
+docker run -d \
+  --name dian-backend \
+  --network dian-net \
+  --restart unless-stopped \
+  -p 18080:18080 \
+  -e DB_HOST=dian-postgres \
   -e DB_PORT=5432 \
   -e DB_NAME=dian_bot \
   -e DB_USER=postgres \
-  -e DB_PASSWORD=<your_db_password> \
-  -e JWT_SECRET_KEY=<your_strong_secret> \
+  -e DB_PASSWORD='YourStrongPassword123!' \
+  -e JWT_SECRET_KEY='Change-Me-To-A-Long-Random-Secret' \
+  -e PORT=18080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/logs:/app/logs \
   -v $(pwd)/instances:/app/instances \
-  <your_dockerhub_user>/dian-qq-bot:latest
+  mayfinal/dian-qq-bot-backend:latest
+
+# 4) 启动前端
+docker run -d \
+  --name dian-frontend \
+  --network dian-net \
+  --restart unless-stopped \
+  -p 16788:16788 \
+  mayfinal/dian-qq-bot-frontend:latest
 ```
 
-### 方式二：本地开发
+### 方式三：本地开发
 
 ```bash
 # 1. 安装依赖
@@ -246,7 +280,7 @@ python main.py
 ### 创建 Bot 实例
 
 ```bash
-curl -X POST "http://localhost:16788/api/v1/instances" \
+curl -X POST "http://localhost:18080/api/v1/instances" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "my-bot",
@@ -281,31 +315,31 @@ curl -X POST "http://localhost:16788/api/v1/instances" \
 ### 列出所有实例
 
 ```bash
-curl "http://localhost:16788/api/v1/instances"
+curl "http://localhost:18080/api/v1/instances"
 ```
 
 ### 启动实例
 
 ```bash
-curl -X POST "http://localhost:16788/api/v1/instances/{instance_id}/start"
+curl -X POST "http://localhost:18080/api/v1/instances/{instance_id}/start"
 ```
 
 ### 停止实例
 
 ```bash
-curl -X POST "http://localhost:16788/api/v1/instances/{instance_id}/stop"
+curl -X POST "http://localhost:18080/api/v1/instances/{instance_id}/stop"
 ```
 
 ### 获取日志
 
 ```bash
-curl "http://localhost:16788/api/v1/instances/{instance_id}/logs?tail=100"
+curl "http://localhost:18080/api/v1/instances/{instance_id}/logs?tail=100"
 ```
 
 ### 删除实例
 
 ```bash
-curl -X DELETE "http://localhost:16788/api/v1/instances/{instance_id}"
+curl -X DELETE "http://localhost:18080/api/v1/instances/{instance_id}"
 ```
 
 ---
@@ -320,8 +354,8 @@ curl -X DELETE "http://localhost:16788/api/v1/instances/{instance_id}"
 | `DB_PORT` | `5432` | PostgreSQL 端口 |
 | `DEBUG` | `false` | 调试模式 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
-| `APP_PORT` | `16788` | 单容器应用对外端口（前端 + API 入口） |
-| `DOCKER_SOCKET` | `npipe:////./pipe/docker_engine` | Docker Socket 路径（Windows） |
+| `API_PORT` | `18080` | 后端 API 对外端口（compose 映射） |
+| `FRONTEND_PORT` | `16788` | 前端对外端口（compose 映射） |
 | `CONTAINER_PREFIX` | `dian` | 容器名称前缀 |
 | `NAPCAT_IMAGE` | `mlikiowa/napcat-docker:latest` | NapCat 镜像 |
 | `PORT_RANGE_START` | `30000` | Bot 实例端口范围起始 |
