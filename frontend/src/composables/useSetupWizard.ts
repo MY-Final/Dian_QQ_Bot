@@ -20,11 +20,11 @@ export function useSetupWizard() {
   
   // 数据库配置
   const dbConfig = ref<DatabaseConfig>({
-    host: 'localhost',
+    host: 'postgres',
     port: 5432,
     database: 'dian_bot',
     username: 'postgres',
-    password: '',
+    password: 'Mima123456.@',
   })
   
   // 管理员配置
@@ -55,11 +55,11 @@ export function useSetupWizard() {
     if (!dbMode.value) {
       // 内置模式：默认配置
       dbConfig.value = {
-        host: 'localhost',
+        host: 'postgres',
         port: 5432,
         database: 'dian_bot',
         username: 'postgres',
-        password: '',
+        password: 'Mima123456.@',
       }
     }
   }

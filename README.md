@@ -352,7 +352,8 @@ curl -X DELETE "http://localhost:18080/api/v1/instances/{instance_id}"
 | `DB_USER` | `postgres` | PostgreSQL 用户名 |
 | `DB_PASSWORD` | `Mima123456.@` | PostgreSQL 密码（内置默认，建议生产修改） |
 | `DB_NAME` | `dian_bot` | PostgreSQL 数据库名 |
-| `DB_PORT` | `5432` | PostgreSQL 端口 |
+| `DB_PORT` | `5432` | PostgreSQL 容器内端口（应用内部连接） |
+| `DB_EXPOSE_PORT` | `5500` | PostgreSQL 映射到宿主机端口（避免与本机 5432 冲突） |
 | `DEBUG` | `false` | 调试模式 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
 | `API_PORT` | `18080` | 后端 API 对外端口（compose 映射） |

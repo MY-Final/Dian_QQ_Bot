@@ -88,7 +88,7 @@ docker run -d \
   -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=Mima123456.@ \
   -e POSTGRES_DB=dian_bot \
-  -p 5432:5432 \
+  -p 5500:5432 \
   postgres:16-alpine
 ```
 
