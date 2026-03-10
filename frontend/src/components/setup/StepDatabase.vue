@@ -79,6 +79,15 @@ function handleSubmit() {
       </div>
     </div>
 
+    <div v-else class="p-3 rounded-xl bg-blue-50 border border-blue-200">
+      <p class="text-xs font-semibold text-blue-700">
+        内置数据库模式已自动使用：host=postgres, port=5432, user=postgres, password=Mima123456.@
+      </p>
+      <p class="mt-1 text-[11px] text-blue-600">
+        若你在宿主机测试连接，请使用 127.0.0.1:5500（容器内端口仍为 5432）。
+      </p>
+    </div>
+
     <!-- 数据库配置表单 -->
     <div class="grid grid-cols-2 gap-x-6 gap-y-4">
       <div class="space-y-1.5 col-span-2 sm:col-span-1">

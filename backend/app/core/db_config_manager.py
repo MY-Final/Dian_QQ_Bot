@@ -19,11 +19,11 @@ class DatabaseConfig:
 
     def __init__(
         self,
-        host: str = "localhost",
+        host: str = "postgres",
         port: int = 5432,
         database: str = "dian_bot",
         username: str = "postgres",
-        password: str = "postgres",
+        password: str = "Mima123456.@",
     ):
         self.host = host
         self.port = port
@@ -82,11 +82,11 @@ class DatabaseConfig:
                 config_data = json.load(f)
 
             config = cls(
-                host=config_data.get("host", "localhost"),
+                host=config_data.get("host", "postgres"),
                 port=config_data.get("port", 5432),
                 database=config_data.get("database", "dian_bot"),
                 username=config_data.get("username", "postgres"),
-                password=config_data.get("password", "postgres"),
+                password=config_data.get("password", "Mima123456.@"),
             )
 
             logger.info(f"数据库配置已加载：{config.host}:{config.port}/{config.database}")
