@@ -64,9 +64,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     # JWT 配置
-    jwt_secret_key: str = Field(
-        default="change-this-to-a-strong-secret-before-production"
-    )
+    jwt_secret_key: str = Field(default="change-this-to-a-strong-secret-before-production")
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_hours: int = Field(default=24)
     refresh_token_expire_days: int = Field(default=7)
@@ -95,11 +93,7 @@ class Settings(BaseSettings):
         Returns:
             list[str]: 允许跨域访问的来源
         """
-        return [
-            origin.strip()
-            for origin in self.cors_allowed_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 # 全局配置单例
