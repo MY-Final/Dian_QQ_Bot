@@ -397,6 +397,13 @@ class SetupService:
         error_text = str(exc)
         lower_error_text = error_text.lower()
 
+        if "password authentication failed" in lower_error_text:
+            return DatabaseInitializationError(
+                "数据库认证失败：当前 postgres 卷中的密码与安装向导不一致。"
+                "如果是首次安装，请执行 `docker compose down -v` 后重新启动；"
+                "如果已有数据，请填写历史数据库密码。"
+            )
+
         if "permission denied" in lower_error_text:
             return DatabaseInitializationError(
                 "数据库权限不足，无法创建表，请使用具备建表权限的账号"

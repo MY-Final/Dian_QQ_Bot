@@ -191,8 +191,8 @@ async def initialize_db(
         )
     except DatabaseInitializationError as exc:
         return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=error_response(exc.message, status.HTTP_500_INTERNAL_SERVER_ERROR),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=error_response(exc.message, status.HTTP_400_BAD_REQUEST),
         )
 
 
