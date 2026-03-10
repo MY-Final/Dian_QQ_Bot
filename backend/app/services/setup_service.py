@@ -3,6 +3,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
+from urllib.parse import quote_plus
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -53,7 +54,12 @@ class SetupService:
         Returns:
             str: 数据库连接 URL
         """
-        return f"postgresql+asyncpg://{username}:{password}@{host}:{port}/{database}"
+        encoded_username = quote_plus(username)
+        encoded_password = quote_plus(password)
+        return (
+            f"postgresql+asyncpg://{encoded_username}:{encoded_password}"
+            f"@{host}:{port}/{database}"
+        )
 
     async def get_setup_status(
         self,

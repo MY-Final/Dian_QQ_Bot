@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +35,10 @@ class DatabaseConfig:
     @property
     def database_url(self) -> str:
         """构建数据库连接 URL。"""
+        encoded_username = quote_plus(self.username)
+        encoded_password = quote_plus(self.password)
         return (
-            f"postgresql+asyncpg://{self.username}:{self.password}"
+            f"postgresql+asyncpg://{encoded_username}:{encoded_password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 

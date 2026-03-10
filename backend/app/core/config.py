@@ -4,6 +4,7 @@
 """
 
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -55,8 +56,10 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """构建数据库连接 URL（应用自身使用的数据库）。"""
+        encoded_user = quote_plus(self.db_user)
+        encoded_password = quote_plus(self.db_password)
         return (
-            f"postgresql+asyncpg://{self.db_user}:{self.db_password}"
+            f"postgresql+asyncpg://{encoded_user}:{encoded_password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
 
