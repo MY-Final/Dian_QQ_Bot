@@ -10,6 +10,7 @@ const toast = useToast()
 
 const localImages = ref<LocalImageResult[]>([])
 const loadingImages = ref(false)
+const imageLoadError = ref('')
 const removingImageRef = ref<string | null>(null)
 const forceRemove = ref(false)
 const searchKeyword = ref('')
@@ -286,11 +287,15 @@ function formatCreatedAt(value: string): string {
 
 async function loadLocalImages(): Promise<void> {
   loadingImages.value = true
+  imageLoadError.value = ''
   try {
     const response = await imageApi.local()
     localImages.value = response.data.data || []
   } catch (err) {
-    toast.error(getErrorMessage(err, '加载本地镜像失败'))
+    const message = getErrorMessage(err, '加载本地镜像失败')
+    localImages.value = []
+    imageLoadError.value = message
+    toast.error(message)
   } finally {
     loadingImages.value = false
     ensureGroupState()
@@ -520,6 +525,19 @@ watch(
           <tbody>
             <tr v-if="loadingImages">
               <td colspan="6" class="px-4 py-6 text-center text-slate-500">正在加载镜像列表...</td>
+            </tr>
+            <tr v-else-if="imageLoadError">
+              <td colspan="6" class="px-4 py-6 text-center text-rose-500">
+                <div class="font-medium">本地镜像加载失败</div>
+                <div class="mt-1 text-xs">{{ imageLoadError }}</div>
+                <button
+                  type="button"
+                  class="mt-3 rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-600"
+                  @click="loadLocalImages"
+                >
+                  重试
+                </button>
+              </td>
             </tr>
             <tr v-else-if="filteredImageVersionRows.length === 0">
               <td colspan="6" class="px-4 py-6 text-center text-slate-500">暂无本地镜像版本</td>

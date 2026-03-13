@@ -567,6 +567,19 @@ watch(formFramework, () => {
                 </div>
               </td>
             </tr>
+            <tr v-else-if="store.error" class="hover:bg-gray-50">
+              <td colspan="4" class="px-6 py-8 text-center text-rose-500">
+                <div class="text-2xl mb-2">:(</div>
+                <div>实例列表加载失败</div>
+                <div class="text-xs mt-1">{{ store.error }}</div>
+                <button
+                  class="mt-3 inline-flex items-center rounded-md bg-rose-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-600"
+                  @click="store.fetchInstances(true)"
+                >
+                  重试
+                </button>
+              </td>
+            </tr>
             <tr v-else-if="filteredInstances.length === 0" class="hover:bg-gray-50">
               <td colspan="4" class="px-6 py-8 text-center text-gray-400">
                 <div class="text-2xl mb-2">🐱</div>
