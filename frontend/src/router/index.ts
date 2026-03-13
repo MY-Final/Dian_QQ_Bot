@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { authApi, clearAuthSession, getAccessToken } from '@/api'
+import { authApi, clearAuthSession, getAccessToken, setupApi } from '@/api'
 import MainLayout from '../layouts/MainLayout.vue'
 
 const SETUP_STATUS_CACHE_MS = 30_000
@@ -18,8 +18,8 @@ async function getSetupInitializedStatus(): Promise<boolean> {
     return setupStatusCache.initialized
   }
 
-  const response = await fetch('/api/v1/setup/status')
-  const data = await response.json()
+  const response = await setupApi.getStatus()
+  const data = response.data
   const initialized = Boolean(data.data?.initialized)
   setupStatusCache = {
     initialized,

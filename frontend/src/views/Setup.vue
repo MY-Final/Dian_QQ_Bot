@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { setupApi } from '@/api'
 import Toast from '@/components/ui/Toast.vue'
 import { useSetupWizard } from '@/composables/useSetupWizard'
 import { useToast } from '@/composables/useToast'
@@ -36,8 +37,8 @@ const {
 onMounted(async () => {
   try {
     await loadInternalDbDefaults()
-    const response = await fetch('/api/v1/setup/status')
-    const data = await response.json()
+    const response = await setupApi.getStatus()
+    const data = response.data
     if (data.data?.initialized) {
       router.push('/')
     }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getErrorMessage, imageApi, instanceApi, type Instance } from '../api'
 import { useInstanceStore } from '../stores/instance'
@@ -15,6 +15,7 @@ const toast = useToast()
 const { preferences } = useUiPreferences()
 
 const instance = ref<Instance | null>(null)
+const detailError = ref('')
 const logs = ref('')
 const loading = ref(true)
 const logsLoading = ref(false)
@@ -46,16 +47,6 @@ const confirmModal = ref({
   requireTextPlaceholder: '请输入实例名称',
   action: null as (() => Promise<void>) | null,
   loading: false,
-})
-
-onMounted(async () => {
-  await fetchInstance()
-  // 如果实例正在运行，默认开启实时日志
-  if (instance.value?.status === 'running') {
-    resetLogCursor()
-    await fetchLogs()
-    toggleRealtime(true)
-  }
 })
 
 watch(
@@ -96,13 +87,37 @@ watch(() => instance.value?.status, (newStatus) => {
   }
 })
 
-async function fetchInstance() {
+watch(
+  instanceId,
+  async () => {
+    stopRealtime()
+    detailError.value = ''
+    instance.value = null
+    logs.value = ''
+    resetLogCursor()
+    const current_instance = await fetchInstance()
+
+    if (current_instance && current_instance.status === 'running') {
+      await fetchLogs()
+      toggleRealtime(true)
+    }
+  },
+  { immediate: true },
+)
+
+async function fetchInstance(): Promise<Instance | null> {
   loading.value = true
+  detailError.value = ''
   try {
     const response = await instanceApi.get(instanceId.value)
     instance.value = response.data.data || null
+    return instance.value
   } catch (error) {
-    toast.error(getErrorMessage(error, '获取实例详情失败'))
+    const message = getErrorMessage(error, '获取实例详情失败')
+    instance.value = null
+    detailError.value = message
+    toast.error(message)
+    return null
   } finally {
     loading.value = false
   }
@@ -526,6 +541,17 @@ function clearLogs() {
           </svg>
           加载中...
         </div>
+      </div>
+
+      <div v-else-if="detailError" class="bg-rose-50 border border-rose-200 rounded-lg p-6 text-center">
+        <div class="text-rose-600 font-medium">实例详情加载失败</div>
+        <p class="mt-2 text-sm text-rose-500">{{ detailError }}</p>
+        <button
+          @click="fetchInstance"
+          class="mt-4 inline-flex items-center rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600"
+        >
+          重试
+        </button>
       </div>
 
       <!-- Instance Info -->
