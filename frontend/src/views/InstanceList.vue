@@ -546,7 +546,8 @@ watch(formFramework, () => {
 
       <!-- Table -->
       <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table class="w-full text-sm text-left">
+        <div class="overflow-x-auto">
+        <table class="min-w-[720px] w-full text-sm text-left">
           <thead class="bg-gray-50 text-xs font-medium text-gray-500 uppercase">
             <tr>
               <th class="px-6 py-3">实例名称</th>
@@ -631,7 +632,7 @@ watch(formFramework, () => {
                 <button
                   @click.stop="handleStartInstance(instance)"
                   v-if="instance.status !== 'running'"
-                  :disabled="store.loading || store.actionInstance === instance.id"
+                  :disabled="store.actionInstance === instance.id"
                   class="px-3 py-1.5 text-xs text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50 inline-flex items-center"
                   title="启动实例"
                 >
@@ -644,7 +645,7 @@ watch(formFramework, () => {
                 <button
                   @click.stop="handleStopInstance(instance)"
                   v-else
-                  :disabled="store.loading || store.actionInstance === instance.id"
+                  :disabled="store.actionInstance === instance.id"
                   class="px-3 py-1.5 text-xs text-yellow-600 hover:bg-yellow-50 rounded-md transition-colors disabled:opacity-50 inline-flex items-center"
                   title="停止实例"
                 >
@@ -656,7 +657,7 @@ watch(formFramework, () => {
                 </button>
                 <button
                   @click.stop="handleDeleteInstance(instance)"
-                  :disabled="store.loading || store.actionInstance === instance.id"
+                  :disabled="store.actionInstance === instance.id"
                   class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 inline-flex items-center"
                   title="删除实例"
                 >
@@ -670,6 +671,7 @@ watch(formFramework, () => {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
       
       <!-- Footer info -->

@@ -302,31 +302,40 @@ async function updateImageVersion() {
 
     toast.warning(response.data.message || '本地未找到镜像，准备拉取')
   } catch {
-    const shouldPull = window.confirm('本地未找到镜像，是否立即拉取并更新？')
-    if (!shouldPull) {
-      imageActionLoading.value = false
-      return
-    }
-
-    try {
-      await imageApi.pull(
-        imageRepoInput.value.trim(),
-        imageTagInput.value.trim(),
-        imageRegistryInput.value || undefined,
-      )
-      const updateResponse = await instanceApi.updateImage(instanceId.value, {
-        image_registry: imageRegistryInput.value || undefined,
-        image_repo: imageRepoInput.value.trim(),
-        image_tag: imageTagInput.value.trim(),
-        auto_pull: false,
-      })
-      if (updateResponse.data.success && updateResponse.data.data) {
-        instance.value = updateResponse.data.data
-        toast.success('镜像已拉取并更新成功')
-      }
-    } catch (err) {
-      toast.error(getErrorMessage(err, '镜像更新失败'))
-    }
+    imageActionLoading.value = false
+    showConfirm({
+      title: '拉取并更新镜像',
+      message: '本地未找到目标镜像，是否立即拉取后再更新实例镜像版本？',
+      type: 'info',
+      confirmText: '拉取并更新',
+      action: async () => {
+        imageActionLoading.value = true
+        try {
+          await imageApi.pull(
+            imageRepoInput.value.trim(),
+            imageTagInput.value.trim(),
+            imageRegistryInput.value || undefined,
+          )
+          const updateResponse = await instanceApi.updateImage(instanceId.value, {
+            image_registry: imageRegistryInput.value || undefined,
+            image_repo: imageRepoInput.value.trim(),
+            image_tag: imageTagInput.value.trim(),
+            auto_pull: false,
+          })
+          if (updateResponse.data.success && updateResponse.data.data) {
+            instance.value = updateResponse.data.data
+            toast.success('镜像已拉取并更新成功')
+            return
+          }
+          toast.error(updateResponse.data.message || '镜像更新失败')
+        } catch (err) {
+          toast.error(getErrorMessage(err, '镜像更新失败'))
+        } finally {
+          imageActionLoading.value = false
+        }
+      },
+    })
+    return
   } finally {
     imageActionLoading.value = false
   }

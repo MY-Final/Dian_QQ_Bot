@@ -220,7 +220,6 @@ export const useInstanceStore = defineStore('instances', () => {
   }
 
   async function startInstance(id: string): Promise<boolean> {
-    loading.value = true
     error.value = null
     actionInstance.value = id
     try {
@@ -236,13 +235,11 @@ export const useInstanceStore = defineStore('instances', () => {
       error.value = getErrorMessage(err, '启动实例失败')
       return false
     } finally {
-      loading.value = false
       actionInstance.value = null
     }
   }
 
   async function stopInstance(id: string): Promise<boolean> {
-    loading.value = true
     error.value = null
     actionInstance.value = id
     try {
@@ -258,14 +255,13 @@ export const useInstanceStore = defineStore('instances', () => {
       error.value = getErrorMessage(err, '停止实例失败')
       return false
     } finally {
-      loading.value = false
       actionInstance.value = null
     }
   }
 
   async function restartInstance(id: string): Promise<boolean> {
-    loading.value = true
     error.value = null
+    actionInstance.value = id
     try {
       const response = await instanceApi.restart(id)
       if (response.data.success && response.data.data) {
@@ -279,12 +275,11 @@ export const useInstanceStore = defineStore('instances', () => {
       error.value = getErrorMessage(err, '重启实例失败')
       return false
     } finally {
-      loading.value = false
+      actionInstance.value = null
     }
   }
 
   async function deleteInstance(id: string): Promise<boolean> {
-    loading.value = true
     error.value = null
     actionInstance.value = id
     try {
@@ -303,7 +298,6 @@ export const useInstanceStore = defineStore('instances', () => {
       error.value = getErrorMessage(err, '删除实例失败')
       return false
     } finally {
-      loading.value = false
       actionInstance.value = null
     }
   }

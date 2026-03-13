@@ -504,7 +504,8 @@ watch(
       </div>
 
       <div class="mt-4 overflow-hidden rounded-lg border border-slate-200">
-        <table class="min-w-full text-sm">
+        <div class="overflow-x-auto">
+        <table class="min-w-[860px] w-full text-sm">
           <thead class="bg-slate-50 text-slate-600">
             <tr>
               <th class="px-4 py-3 text-left">
@@ -591,6 +592,7 @@ watch(
             </template>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   </main>
