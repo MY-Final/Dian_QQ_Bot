@@ -24,6 +24,23 @@ logger = logging.getLogger(__name__)
 class AuthService:
     """认证业务服务。"""
 
+    @staticmethod
+    def _serialize_user(user: User) -> dict[str, object]:
+        """序列化用户信息。
+
+        Args:
+            user: 用户模型对象
+
+        Returns:
+            dict[str, object]: 可用于接口返回和 token 生成的用户信息
+        """
+        return {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+        }
+
     async def login(
         self,
         db: AsyncSession,
@@ -72,12 +89,7 @@ class AuthService:
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": {
-                "id": str(user.id),
-                "username": user.username,
-                "email": user.email,
-                "role": user.role,
-            },
+            "user": self._serialize_user(user),
         }
 
     async def register(
@@ -130,14 +142,19 @@ class AuthService:
             "role": user.role,
         }
 
-    def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
+    async def refresh_access_token(
+        self,
+        db: AsyncSession,
+        refresh_token: str,
+    ) -> dict[str, object]:
         """刷新访问令牌。
 
         Args:
+            db: 数据库会话
             refresh_token: 刷新令牌
 
         Returns:
-            dict[str, str]: 新 access token 数据
+            dict[str, object]: 新 access token 数据
 
         Raises:
             TokenValidationError: 刷新令牌无效时抛出
@@ -150,14 +167,29 @@ class AuthService:
         if not isinstance(user_id, str):
             raise TokenValidationError()
 
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except ValueError as exc:
+            raise TokenValidationError() from exc
+
+        result = await db.execute(select(User).where(User.id == user_uuid))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise AuthUserNotFoundError()
+
         access_token = create_access_token(
-            data={"sub": user_id},
+            data={
+                "sub": str(user.id),
+                "username": user.username,
+                "role": user.role,
+            },
             expires_delta=timedelta(hours=settings.access_token_expire_hours),
         )
 
         return {
             "access_token": access_token,
             "token_type": "bearer",
+            "user": self._serialize_user(user),
         }
 
     async def get_current_user_profile(

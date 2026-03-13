@@ -116,6 +116,7 @@ async def login(
             "access_token": login_payload["access_token"],
             "refresh_token": login_payload["refresh_token"],
             "token_type": login_payload["token_type"],
+            "user": login_payload["user"],
         }
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -195,6 +196,7 @@ async def register(
 @router.post("/refresh", summary="刷新 Token")
 async def refresh_token(
     request: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
     service: AuthService = Depends(get_auth_service),
 ) -> JSONResponse:
     """刷新访问令牌。
@@ -209,7 +211,7 @@ async def refresh_token(
         RuntimeError: Token 处理失败时抛出
     """
     try:
-        access_token_data = service.refresh_access_token(request.refresh_token)
+        access_token_data = await service.refresh_access_token(db, request.refresh_token)
 
         # Convert to dict[str, object] for type compatibility
         response_data: dict[str, object] = {k: v for k, v in access_token_data.items()}
@@ -225,6 +227,11 @@ async def refresh_token(
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content=error_response(exc.message, status.HTTP_401_UNAUTHORIZED),
+        )
+    except AuthUserNotFoundError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content=error_response(exc.message, status.HTTP_404_NOT_FOUND),
         )
 
     except Exception:

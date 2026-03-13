@@ -10,6 +10,7 @@
 - 环境变量格式化
 """
 
+import asyncio
 import logging
 import platform
 import socket
@@ -21,6 +22,8 @@ import docker
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_port_allocation_lock: asyncio.Lock = asyncio.Lock()
 
 
 def get_docker_client() -> docker.DockerClient:
@@ -272,6 +275,15 @@ async def allocate_port(
 
     logger.error("端口范围 %s-%s 内无可用端口", settings.port_range_start, settings.port_range_end)
     raise PortAllocationError(0)
+
+
+def get_port_allocation_lock() -> asyncio.Lock:
+    """获取端口分配锁。
+
+    Returns:
+        asyncio.Lock: 端口分配互斥锁
+    """
+    return _port_allocation_lock
 
 
 def format_container_env(

@@ -29,6 +29,7 @@ from app.utils.docker_utils import (
     generate_container_name,
     generate_instance_id,
     generate_volume_path,
+    get_port_allocation_lock,
     get_docker_volume_bind,
 )
 
@@ -137,31 +138,60 @@ class NapCatManager(BaseBotManager):
         instance_id = generate_instance_id()
         container_name = generate_container_name(protocol, instance_id)
 
-        # 端口分配逻辑（带冲突检测）
-        http_port = await allocate_port(preferred_port=port_http)
+        async with get_port_allocation_lock():
+            # 端口分配逻辑（带冲突检测）
+            http_port = await allocate_port(preferred_port=port_http)
 
-        if port_ws is not None:
-            ws_port = await allocate_port(
-                preferred_port=port_ws,
-                excluded_ports={http_port},
-            )
-        else:
-            try:
+            if port_ws is not None:
                 ws_port = await allocate_port(
-                    preferred_port=http_port + 1,
+                    preferred_port=port_ws,
                     excluded_ports={http_port},
                 )
-            except BotError:
-                ws_port = await allocate_port(excluded_ports={http_port})
+            else:
+                try:
+                    ws_port = await allocate_port(
+                        preferred_port=http_port + 1,
+                        excluded_ports={http_port},
+                    )
+                except BotError:
+                    ws_port = await allocate_port(excluded_ports={http_port})
 
-        web_ui_port: Optional[int] = None
-        if port_web_ui is not None:
-            web_ui_port = await allocate_port(
-                preferred_port=port_web_ui,
-                excluded_ports={http_port, ws_port},
+            web_ui_port: Optional[int] = None
+            if port_web_ui is not None:
+                web_ui_port = await allocate_port(
+                    preferred_port=port_web_ui,
+                    excluded_ports={http_port, ws_port},
+                )
+
+            volume_path = generate_volume_path(instance_id, protocol)
+
+            now = datetime.utcnow()
+
+            default_repo, default_tag = self._parse_image_reference(settings.napcat_image)
+            resolved_image_repo = image_repo or default_repo
+            resolved_image_tag = image_tag or default_tag
+            image_reference = f"{resolved_image_repo}:{resolved_image_tag}"
+
+            db_instance = BotInstanceDB(
+                id=instance_id,
+                name=name,
+                qq_number=qq_number,
+                protocol=protocol,
+                status=InstanceStatus.CREATED.value,
+                container_name=container_name,
+                port=http_port,  # 主端口存储 HTTP 端口
+                port_web_ui=web_ui_port if web_ui_port else None,
+                port_ws=ws_port if ws_port else None,
+                volume_path=str(volume_path),
+                description=description,
+                image_repo=resolved_image_repo,
+                image_tag=resolved_image_tag,
+                created_at=now,
+                updated_at=now,
             )
 
-        volume_path = generate_volume_path(instance_id, protocol)
+            # 先写入 DB，确保持久化存在
+            db_instance = await save_instance(db_instance)
 
         # 构建环境变量
         env = format_container_env(qq_number, instance_id, protocol)
@@ -184,34 +214,6 @@ class NapCatManager(BaseBotManager):
         }
         if web_ui_port:
             ports_mapping["6099/tcp"] = web_ui_port  # Web UI (如果指定)
-
-        now = datetime.utcnow()
-
-        default_repo, default_tag = self._parse_image_reference(settings.napcat_image)
-        resolved_image_repo = image_repo or default_repo
-        resolved_image_tag = image_tag or default_tag
-        image_reference = f"{resolved_image_repo}:{resolved_image_tag}"
-
-        db_instance = BotInstanceDB(
-            id=instance_id,
-            name=name,
-            qq_number=qq_number,
-            protocol=protocol,
-            status=InstanceStatus.CREATED.value,
-            container_name=container_name,
-            port=http_port,  # 主端口存储 HTTP 端口
-            port_web_ui=web_ui_port if web_ui_port else None,
-            port_ws=ws_port if ws_port else None,
-            volume_path=str(volume_path),
-            description=description,
-            image_repo=resolved_image_repo,
-            image_tag=resolved_image_tag,
-            created_at=now,
-            updated_at=now,
-        )
-
-        # 先写入 DB，确保持久化存在
-        db_instance = await save_instance(db_instance)
 
         # 同步创建容器，确保结果可追踪
         try:
