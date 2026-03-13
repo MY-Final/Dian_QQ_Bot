@@ -92,8 +92,8 @@ function enterDashboard() {
       </div>
 
       <!-- 进度条 -->
-      <div class="flex items-center justify-center mb-10 space-x-4">
-        <div class="flex items-center space-x-2">
+      <div class="mb-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-3 sm:gap-x-4">
+        <div class="flex items-center space-x-2 rounded-full bg-white/70 px-3 py-1.5 sm:bg-transparent sm:px-0 sm:py-0">
           <span 
             :class="[
               'w-2.5 h-2.5 rounded-full transition-all duration-500',
@@ -110,8 +110,8 @@ function enterDashboard() {
             欢迎
           </span>
         </div>
-        <div class="w-12 h-[1px] bg-slate-200"></div>
-        <div class="flex items-center space-x-2">
+        <div class="hidden h-[1px] w-8 bg-slate-200 sm:block sm:w-12"></div>
+        <div class="flex items-center space-x-2 rounded-full bg-white/70 px-3 py-1.5 sm:bg-transparent sm:px-0 sm:py-0">
           <span 
             :class="[
               'w-2.5 h-2.5 rounded-full transition-all duration-500',
@@ -128,8 +128,8 @@ function enterDashboard() {
             数据库配置
           </span>
         </div>
-        <div class="w-12 h-[1px] bg-slate-200"></div>
-        <div class="flex items-center space-x-2">
+        <div class="hidden h-[1px] w-8 bg-slate-200 sm:block sm:w-12"></div>
+        <div class="flex items-center space-x-2 rounded-full bg-white/70 px-3 py-1.5 sm:bg-transparent sm:px-0 sm:py-0">
           <span 
             :class="[
               'w-2.5 h-2.5 rounded-full transition-all duration-500',
@@ -146,8 +146,8 @@ function enterDashboard() {
             初始化表
           </span>
         </div>
-        <div class="w-12 h-[1px] bg-slate-200"></div>
-        <div class="flex items-center space-x-2">
+        <div class="hidden h-[1px] w-8 bg-slate-200 sm:block sm:w-12"></div>
+        <div class="flex items-center space-x-2 rounded-full bg-white/70 px-3 py-1.5 sm:bg-transparent sm:px-0 sm:py-0">
           <span 
             :class="[
               'w-2.5 h-2.5 rounded-full transition-all duration-500',
@@ -164,8 +164,8 @@ function enterDashboard() {
             管理员
           </span>
         </div>
-        <div class="w-12 h-[1px] bg-slate-200"></div>
-        <div class="flex items-center space-x-2">
+        <div class="hidden h-[1px] w-8 bg-slate-200 sm:block sm:w-12"></div>
+        <div class="flex items-center space-x-2 rounded-full bg-white/70 px-3 py-1.5 sm:bg-transparent sm:px-0 sm:py-0">
           <span 
             :class="[
               'w-2.5 h-2.5 rounded-full transition-all duration-500',
@@ -185,7 +185,7 @@ function enterDashboard() {
       </div>
 
       <!-- 安装面板 -->
-      <div class="glass-card rounded-[2.5rem] p-10 min-h-[520px] flex flex-col justify-center bg-white/70 backdrop-blur-xl border border-white/80 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)]">
+      <div class="glass-card min-h-[520px] rounded-[2rem] border border-white/80 bg-white/70 p-6 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.05)] backdrop-blur-xl sm:rounded-[2.5rem] sm:p-10 flex flex-col justify-center">
         
         <!-- 步骤 1: 欢迎 -->
         <div v-show="currentStep === 1" class="text-center py-8">

@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { systemApi } from '../api'
+import { getErrorMessage, systemApi } from '../api'
 
 export interface DockerStatus {
   running: boolean
@@ -36,12 +36,11 @@ export function useDockerStatus() {
         }
       }
     } catch (error) {
-      console.error('获取 Docker 状态失败:', error)
       dockerStatus.value = {
         running: false,
         platform: 'unknown',
         version: '',
-        message: '无法连接到后端服务',
+        message: getErrorMessage(error, '无法连接到后端服务'),
       }
     } finally {
       loading.value = false
