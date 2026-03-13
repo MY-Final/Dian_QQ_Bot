@@ -111,14 +111,8 @@ def get_session_maker():  # type: ignore[no-untyped-def]
     global async_session_maker
 
     if async_session_maker is None:
-        config = get_db_config()
-        engine = create_async_engine(
-            config.database_url,
-            echo=False,
-            future=True,
-        )
         async_session_maker = async_sessionmaker(
-            engine,
+            get_engine(),
             class_=AsyncSession,
             expire_on_commit=False,
         )
@@ -167,6 +161,22 @@ async def _ensure_runtime_schema(conn: AsyncConnection) -> None:
     Args:
         conn: 数据库连接对象
     """
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE bot_instances
+            ADD COLUMN IF NOT EXISTS port_web_ui INTEGER
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE bot_instances
+            ADD COLUMN IF NOT EXISTS port_ws INTEGER
+            """
+        )
+    )
     await conn.execute(
         text(
             """
@@ -252,8 +262,10 @@ async def update_instance(db_instance: BotInstanceDB) -> BotInstanceDB:
 
 async def close_db() -> None:
     """关闭数据库连接。"""
-    global engine
+    global engine, async_session_maker
 
     if engine is not None:
         await engine.dispose()
         engine = None
+
+    async_session_maker = None

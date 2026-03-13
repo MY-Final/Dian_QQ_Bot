@@ -582,8 +582,7 @@ class NapCatManager(BaseBotManager):
             raise BotNotFoundError(instance_id) from None
         except DockerException as e:
             logger.error(f"获取容器日志失败: {e}", exc_info=True)
-            error_msg: str = f"获取日志失败: {e}"
-            return error_msg
+            raise BotError(f"获取日志失败: {e}") from e
 
     async def list_instances(self) -> list[InstanceResponse]:
         """列出所有 NapCat Bot 实例。

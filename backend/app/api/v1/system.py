@@ -9,6 +9,7 @@
 
 import logging
 from typing import Any
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
@@ -132,8 +133,10 @@ async def test_database(config: DatabaseConfig) -> JSONResponse:
     """
     logger.info("测试数据库连接：%s:%s/%s", config.host, config.port, config.database)
 
+    encoded_username = quote_plus(config.username)
+    encoded_password = quote_plus(config.password)
     database_url = (
-        f"postgresql+asyncpg://{config.username}:{config.password}@"
+        f"postgresql+asyncpg://{encoded_username}:{encoded_password}@"
         f"{config.host}:{config.port}/{config.database}"
     )
     temp_engine = create_async_engine(database_url, echo=False, future=True, pool_pre_ping=True)
