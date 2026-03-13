@@ -201,11 +201,11 @@ async def docker_status() -> JSONResponse:
 
     return JSONResponse(
         status_code=http_status,
-        content={
-            "success": result["running"],
-            "message": result["message"],
-            "data": result,
-        },
+        content=(
+            success_response(data=result, message=result["message"])
+            if result["running"]
+            else error_response(result["message"], http_status)
+        ),
     )
 
 
@@ -231,23 +231,21 @@ async def database_status() -> JSONResponse:
             version = result.scalar()
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content={
-                    "connected": True,
-                    "database": "PostgreSQL",
-                    "version": version,
-                    "message": "数据库连接正常",
-                },
+                content=success_response(
+                    data={
+                        "connected": True,
+                        "database": "PostgreSQL",
+                        "version": version,
+                        "message": "数据库连接正常",
+                    },
+                    message="数据库连接正常",
+                ),
             )
     except Exception as exc:
         logger.error("数据库连接失败: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={
-                "connected": False,
-                "database": "PostgreSQL",
-                "version": None,
-                "message": "数据库连接失败",
-            },
+            content=error_response("数据库连接失败", status.HTTP_503_SERVICE_UNAVAILABLE),
         )
 
 
@@ -256,10 +254,16 @@ async def database_status() -> JSONResponse:
     summary="健康检查",
     description="简单的服务健康检查",
 )
-async def ping() -> dict[str, str]:
+async def ping() -> JSONResponse:
     """健康检查接口。
 
     Returns:
-        dict[str, str]: 服务状态
+        JSONResponse: 服务状态
     """
-    return {"status": "ok", "message": "点点在看着你呢～ 💕"}
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=success_response(
+            data={"status": "ok", "message": "点点在看着你呢～ 💕"},
+            message="服务运行正常",
+        ),
+    )

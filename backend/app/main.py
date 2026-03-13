@@ -88,7 +88,12 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": "服务器内部错误，请稍后重试。点点会陪你排查的～"},
+        content={
+            "success": False,
+            "message": "服务器内部错误，请稍后重试。点点会陪你排查的～",
+            "code": 500,
+            "data": None,
+        },
     )
 
 
