@@ -8,7 +8,6 @@
 """
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
@@ -37,7 +36,7 @@ def get_instance_service() -> InstanceService:
     return InstanceService(manager=manager, image_service=image_service)
 
 
-def success_response(data: Any = None, message: str = "操作成功") -> dict[str, Any]:
+def success_response(data: object = None, message: str = "操作成功") -> dict[str, object]:
     """生成成功响应。
 
     Args:
@@ -45,12 +44,12 @@ def success_response(data: Any = None, message: str = "操作成功") -> dict[st
         message: 成功消息
 
     Returns:
-        dict[str, Any]: 统一格式成功响应
+        dict[str, object]: 统一格式成功响应
     """
     return {"success": True, "message": message, "data": data}
 
 
-def error_response(message: str, code: int = 400) -> dict[str, Any]:
+def error_response(message: str, code: int = 400) -> dict[str, object]:
     """生成错误响应。
 
     Args:
@@ -58,7 +57,7 @@ def error_response(message: str, code: int = 400) -> dict[str, Any]:
         code: 错误代码
 
     Returns:
-        dict[str, Any]: 统一格式错误响应
+        dict[str, object]: 统一格式错误响应
     """
     return {"success": False, "message": message, "code": code, "data": None}
 
