@@ -103,15 +103,12 @@ class InstanceService:
                 result = await session.execute(select(BotInstanceDB))
                 db_instances = result.scalars().all()
 
+                runtime_status_map = await self._get_runtime_status_map(db_instances)
+
                 serialized_instances: list[dict[str, object]] = []
                 has_status_change = False
                 for db_instance in db_instances:
-                    runtime_status_value = db_instance.status
-                    try:
-                        runtime_status = await self._manager.get_status(db_instance.id)
-                        runtime_status_value = runtime_status.value
-                    except BotError:
-                        runtime_status_value = InstanceStatus.ERROR.value
+                    runtime_status_value = runtime_status_map.get(db_instance.id, db_instance.status)
 
                     if db_instance.status != runtime_status_value:
                         db_instance.status = runtime_status_value
@@ -129,6 +126,30 @@ class InstanceService:
         except Exception as exc:
             logger.error("查询实例列表失败", exc_info=True)
             raise BotError("获取实例列表失败，请稍后重试") from exc
+
+    async def _get_runtime_status_map(
+        self,
+        db_instances: list[BotInstanceDB],
+    ) -> dict[str, str]:
+        """批量获取实例运行时状态。
+
+        Args:
+            db_instances: 数据库实例列表
+
+        Returns:
+            dict[str, str]: 实例 ID 到运行时状态的映射
+        """
+        async def resolve_status(db_instance: BotInstanceDB) -> tuple[str, str]:
+            try:
+                runtime_status = await self._manager.get_status(db_instance.id)
+                return db_instance.id, runtime_status.value
+            except BotError:
+                return db_instance.id, InstanceStatus.ERROR.value
+
+        status_pairs = await asyncio.gather(
+            *(resolve_status(db_instance) for db_instance in db_instances)
+        )
+        return {instance_id: status_value for instance_id, status_value in status_pairs}
 
     async def get_instance(self, instance_id: str) -> dict[str, object]:
         """获取实例详情。

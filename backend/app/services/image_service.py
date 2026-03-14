@@ -1,5 +1,6 @@
 """Docker 镜像业务服务模块。"""
 
+import asyncio
 import json
 import logging
 from typing import Optional
@@ -29,6 +30,26 @@ class ImageService:
     def __init__(self) -> None:
         """初始化镜像服务。"""
         self._client: Optional[docker.DockerClient] = None
+
+    @staticmethod
+    def _fetch_json(url: str) -> dict[str, object]:
+        """同步获取 JSON 数据。
+
+        Args:
+            url: 目标地址
+
+        Returns:
+            dict[str, object]: JSON 结果
+
+        Raises:
+            OSError: 网络读取失败时抛出
+            ValueError: JSON 解析失败时抛出
+        """
+        request = Request(url, method="GET")
+        with urlopen(request, timeout=15) as response:
+            raw_data = response.read().decode("utf-8")
+            payload: dict[str, object] = json.loads(raw_data)
+            return payload
 
     @property
     def client(self) -> docker.DockerClient:
@@ -75,7 +96,7 @@ class ImageService:
             ImageServiceError: 查询失败时抛出
         """
         try:
-            images = self.client.images.list()
+            images = await asyncio.to_thread(self.client.images.list)
             payload: list[dict[str, object]] = []
             for image in images:
                 tags = image.tags or []
@@ -104,7 +125,7 @@ class ImageService:
             bool: 是否存在
         """
         try:
-            self.client.images.get(image_ref)
+            await asyncio.to_thread(self.client.images.get, image_ref)
             return True
         except ImageNotFound:
             return False
@@ -124,7 +145,7 @@ class ImageService:
             ImagePullError: 拉取失败时抛出
         """
         try:
-            image = self.client.images.pull(image_ref)
+            image = await asyncio.to_thread(self.client.images.pull, image_ref)
             repo_digests = image.attrs.get("RepoDigests", [])
             return {
                 "image_ref": image_ref,
@@ -164,23 +185,25 @@ class ImageService:
             ]
 
         params = urlencode({"query": query, "page_size": DEFAULT_PAGE_SIZE})
-        request = Request(f"{DOCKER_HUB_SEARCH_URL}?{params}", method="GET")
+        search_url = f"{DOCKER_HUB_SEARCH_URL}?{params}"
 
         try:
-            with urlopen(request, timeout=15) as response:
-                raw_data = response.read().decode("utf-8")
-                payload = json.loads(raw_data)
-                result_items = payload.get("results", [])
-                return [
-                    {
-                        "name": item.get("repo_name", ""),
-                        "description": item.get("short_description", ""),
-                        "registry": "docker.io",
-                        "is_official": bool(item.get("is_official", False)),
-                        "star_count": int(item.get("star_count", 0)),
-                    }
-                    for item in result_items
-                ]
+            payload = await asyncio.to_thread(self._fetch_json, search_url)
+            result_items = payload.get("results", [])
+            if not isinstance(result_items, list):
+                return []
+            return [
+                {
+                    "name": item.get("repo_name", "") if isinstance(item, dict) else "",
+                    "description": (
+                        item.get("short_description", "") if isinstance(item, dict) else ""
+                    ),
+                    "registry": "docker.io",
+                    "is_official": bool(item.get("is_official", False)) if isinstance(item, dict) else False,
+                    "star_count": int(item.get("star_count", 0)) if isinstance(item, dict) else 0,
+                }
+                for item in result_items
+            ]
         except Exception as exc:
             logger.error("搜索镜像仓库失败", exc_info=True)
             raise ImageServiceError("搜索镜像仓库失败，请稍后重试") from exc
@@ -200,31 +223,31 @@ class ImageService:
         """
         if registry:
             tags_url = f"https://{registry.rstrip('/')}/v2/{repository}/tags/list"
-            request = Request(tags_url, method="GET")
             try:
-                with urlopen(request, timeout=15) as response:
-                    raw_data = response.read().decode("utf-8")
-                    payload = json.loads(raw_data)
-                    registry_tags = payload.get("tags", [])
-                    return sorted([str(tag) for tag in registry_tags], reverse=True)
+                payload = await asyncio.to_thread(self._fetch_json, tags_url)
+                registry_tags = payload.get("tags", [])
+                if not isinstance(registry_tags, list):
+                    return []
+                return sorted([str(tag) for tag in registry_tags], reverse=True)
             except Exception as exc:
                 logger.error("读取自定义仓库 tags 失败", exc_info=True)
                 raise ImageServiceError("读取自定义仓库 tags 失败，请检查仓库地址与权限") from exc
 
         encoded_repository = quote(repository, safe="/")
-        request = Request(
-            f"{DOCKER_HUB_TAGS_URL_TEMPLATE.format(repository=encoded_repository)}?page_size=100",
-            method="GET",
+        tags_url = (
+            f"{DOCKER_HUB_TAGS_URL_TEMPLATE.format(repository=encoded_repository)}?page_size=100"
         )
         try:
-            with urlopen(request, timeout=15) as response:
-                raw_data = response.read().decode("utf-8")
-                payload = json.loads(raw_data)
-                result_items = payload.get("results", [])
-                hub_tags: list[str] = [
-                    str(item.get("name", "")) for item in result_items if item.get("name")
-                ]
-                return hub_tags
+            payload = await asyncio.to_thread(self._fetch_json, tags_url)
+            result_items = payload.get("results", [])
+            if not isinstance(result_items, list):
+                return []
+            hub_tags: list[str] = [
+                str(item.get("name", ""))
+                for item in result_items
+                if isinstance(item, dict) and item.get("name")
+            ]
+            return hub_tags
         except Exception as exc:
             logger.error("读取镜像 tags 失败", exc_info=True)
             raise ImageServiceError("读取镜像版本失败，请稍后重试") from exc
@@ -244,7 +267,7 @@ class ImageService:
             ImagePullError: 拉取失败时抛出
         """
         if await self.image_exists_locally(image_ref):
-            image = self.client.images.get(image_ref)
+            image = await asyncio.to_thread(self.client.images.get, image_ref)
             repo_digests = image.attrs.get("RepoDigests", [])
             return {
                 "image_ref": image_ref,
@@ -279,7 +302,7 @@ class ImageService:
             ImageDeleteError: 删除失败时抛出
         """
         try:
-            self.client.images.remove(image=image_ref, force=force, noprune=False)
+            await asyncio.to_thread(self.client.images.remove, image=image_ref, force=force, noprune=False)
             return {"image_ref": image_ref, "removed": True, "force": force}
         except ImageNotFound as exc:
             logger.error("删除镜像失败，镜像不存在: image=%s", image_ref, exc_info=True)

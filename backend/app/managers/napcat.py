@@ -3,6 +3,7 @@
 提供 NapCat Docker 容器的完整生命周期管理。
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -97,6 +98,41 @@ class NapCatManager(BaseBotManager):
             created_at=db_instance.created_at,
             updated_at=db_instance.updated_at,
         )
+
+    def _get_container_status_value(self, container_name: str) -> str:
+        """同步获取容器运行状态。
+
+        Args:
+            container_name: 容器名称
+
+        Returns:
+            str: Docker 容器状态字符串
+
+        Raises:
+            NotFound: 容器不存在时抛出
+            DockerException: Docker 读取失败时抛出
+        """
+        container = self.client.containers.get(container_name)
+        state = container.attrs.get("State", {})
+        return str(state.get("Status", "unknown"))
+
+    def _read_container_logs(self, container_name: str, tail: int) -> str:
+        """同步读取容器日志。
+
+        Args:
+            container_name: 容器名称
+            tail: 日志行数
+
+        Returns:
+            str: 日志文本
+
+        Raises:
+            NotFound: 容器不存在时抛出
+            DockerException: Docker 读取失败时抛出
+        """
+        container = self.client.containers.get(container_name)
+        logs_bytes = container.logs(tail=tail, timestamps=True)
+        return logs_bytes.decode("utf-8")
 
     async def create(
         self,
@@ -537,9 +573,10 @@ class NapCatManager(BaseBotManager):
         container_name = generate_container_name("napcat", instance_id)
 
         try:
-            container = self.client.containers.get(container_name)
-            state = container.attrs.get("State", {})
-            docker_status = state.get("Status", "unknown")
+            docker_status = await asyncio.to_thread(
+                self._get_container_status_value,
+                container_name,
+            )
 
             if docker_status == "running":
                 return InstanceStatus.RUNNING
@@ -574,9 +611,7 @@ class NapCatManager(BaseBotManager):
         container_name = generate_container_name("napcat", instance_id)
 
         try:
-            container = self.client.containers.get(container_name)
-            logs_bytes = container.logs(tail=tail, timestamps=True)
-            logs_str: str = logs_bytes.decode("utf-8")
+            logs_str = await asyncio.to_thread(self._read_container_logs, container_name, tail)
             return logs_str
 
         except NotFound:

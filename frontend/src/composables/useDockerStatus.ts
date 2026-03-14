@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { getErrorMessage, systemApi } from '../api'
 
 export interface DockerStatus {
@@ -47,30 +47,9 @@ export function useDockerStatus() {
     }
   }
 
-  // Docker 状态文本
-  const statusText = computed(() => {
-    if (loading.value) return '检查中...'
-    return dockerStatus.value.running ? 'Docker 已连接' : 'Docker 未连接'
-  })
-
-  // Docker 状态样式
-  const statusClass = computed(() => {
-    if (loading.value) return 'text-gray-500'
-    return dockerStatus.value.running ? 'text-green-600' : 'text-red-600'
-  })
-
-  // Docker 状态圆点样式
-  const dotClass = computed(() => {
-    if (loading.value) return 'bg-gray-400 animate-pulse'
-    return dockerStatus.value.running ? 'bg-green-500' : 'bg-red-500'
-  })
-
   return {
     dockerStatus,
     loading,
-    statusText,
-    statusClass,
-    dotClass,
     fetchDockerStatus,
   }
 }
