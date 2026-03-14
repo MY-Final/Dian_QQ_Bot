@@ -197,14 +197,16 @@ async def docker_status() -> JSONResponse:
     logger.info("检查 Docker 状态")
 
     result = check_docker_status()
-    http_status = status.HTTP_200_OK if result["running"] else status.HTTP_503_SERVICE_UNAVAILABLE
+    running = bool(result.get("running", False))
+    message = str(result.get("message", "Docker 状态未知"))
+    http_status = status.HTTP_200_OK if running else status.HTTP_503_SERVICE_UNAVAILABLE
 
     return JSONResponse(
         status_code=http_status,
         content=(
-            success_response(data=result, message=result["message"])
-            if result["running"]
-            else error_response(result["message"], http_status)
+            success_response(data=result, message=message)
+            if running
+            else error_response(message, http_status)
         ),
     )
 

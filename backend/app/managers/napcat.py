@@ -6,7 +6,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 
 import docker
 from docker.errors import DockerException, NotFound
@@ -131,7 +131,7 @@ class NapCatManager(BaseBotManager):
             DockerException: Docker 读取失败时抛出
         """
         container = self.client.containers.get(container_name)
-        logs_bytes = container.logs(tail=tail, timestamps=True)
+        logs_bytes = cast(bytes, container.logs(tail=tail, timestamps=True))
         return logs_bytes.decode("utf-8")
 
     async def create(
