@@ -3,3 +3,6 @@
 # Ensure consistent line endings across platforms (CI runs on Linux).
 *.py text eol=lf
 *.pyi text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
