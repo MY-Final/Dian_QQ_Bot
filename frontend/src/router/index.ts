@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { authApi, clearAuthSession, getAccessToken, setupApi } from '@/api'
+import { authApi, clearAuthSession, getAccessToken, getCurrentUserFromStorage, setupApi } from '@/api'
 import MainLayout from '../layouts/MainLayout.vue'
 
 const SETUP_STATUS_CACHE_MS = 30_000
+const AUTH_STATUS_CACHE_MS = 60_000
 
 type SetupStatusCache = {
   initialized: boolean
@@ -11,6 +12,7 @@ type SetupStatusCache = {
 }
 
 let setupStatusCache: SetupStatusCache | null = null
+let authStatusCacheTimestamp = 0
 
 async function getSetupInitializedStatus(): Promise<boolean> {
   const now = Date.now()
@@ -26,6 +28,31 @@ async function getSetupInitializedStatus(): Promise<boolean> {
     timestamp: now,
   }
   return initialized
+}
+
+async function ensureAuthenticated(): Promise<boolean> {
+  const token = getAccessToken()
+  if (!token) {
+    return false
+  }
+
+  const now = Date.now()
+  if (getCurrentUserFromStorage() && now - authStatusCacheTimestamp < AUTH_STATUS_CACHE_MS) {
+    return true
+  }
+
+  try {
+    const response = await authApi.me()
+    if (!response.data.success || !response.data.data) {
+      clearAuthSession()
+      return false
+    }
+    authStatusCacheTimestamp = now
+    return true
+  } catch {
+    clearAuthSession()
+    return false
+  }
 }
 
 const router = createRouter({
@@ -118,15 +145,8 @@ router.beforeEach(async (to, _from, next) => {
     return next('/setup')
   }
 
-  const token = getAccessToken()
-  if (!token) {
-    return next('/login')
-  }
-
-  try {
-    await authApi.me()
-  } catch {
-    clearAuthSession()
+  const authenticated = await ensureAuthenticated()
+  if (!authenticated) {
     return next('/login')
   }
   
